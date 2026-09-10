@@ -1,0 +1,8 @@
+tunnel: carecircle-tunnel
+credentials-file: /Users/dev/.cloudflared/carecircle-tunnel.json
+
+ingress:
+
+hostname: care.assistedly.ai
+service: http://localhost:3000
+service: http_status:404

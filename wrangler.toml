@@ -1,0 +1,22 @@
+name = "carecircle-backend"
+compatibility_date = "2024-01-01"
+main = "./dist/server.js"
+type = "javascript"
+node_compat = true
+# Replace with your Cloudflare account ID
+account_id = "<CLOUDFLARE_ACCOUNT_ID>"
+# Deploy to workers.dev subdomain for dev/testing
+development = true
+workers_dev = true
+
+# Optional: define KV, D1, or other bindings here if needed in the future
+
+{
+ "d1_databases": [
+ {
+ "binding": "carecircle_db",
+ "database_name": "carecircle-db",
+ "database_id": "a7f11fa3-2a69-4126-9411-63eb16a64cb7"
+ }
+ ]
+}

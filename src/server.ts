@@ -24,9 +24,11 @@ app.use(errorHandler);
 // Start reminder scheduler (runs in background)
 scheduleReminders();
 
-const PORT = config.port;
-app.listen(PORT, () => {
-  console.log(`🚀 Server listening on http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  const PORT = config.port;
+  app.listen(PORT, () => {
+    console.log(`🚀 Server listening on http://localhost:${PORT}`);
+  });
+}
 
 export { app };

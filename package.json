@@ -4,6 +4,7 @@
   "description": "CareCircle MVP backend – HIPAA/GDPR‑ready Cloudflare Worker",
   "main": "dist/server.js",
   "scripts": {
+    "start": "node dist/server.js",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
     "prisma:generate": "prisma generate",

@@ -29,7 +29,7 @@ export const generateCasePdf = async (caseId: string): Promise<Buffer> => {
       ...c.tasks.map((t) => ({
         ul: [
           `${t.title} – ${t.status}`,
-          `Owner: ${t.owner?.name ?? 'Unassigned'}`,
+          `Owner: ${t.ownerId ?? 'Unassigned'}`,
           `Due: ${t.dueDate.toLocaleString()}`,
           `Escalation: ${t.escalationLevel}`,
         ],
@@ -43,6 +43,7 @@ export const generateCasePdf = async (caseId: string): Promise<Buffer> => {
 
   const pdfDoc = pdfMake.createPdf(docDef);
   return new Promise<Buffer>((resolve, reject) => {
-    pdfDoc.getBuffer((buf) => resolve(Buffer.from(buf)));
+    // pdfmake typings expect no args; cast to any to use callback
+    (pdfDoc as any).getBuffer((buf: any) => resolve(Buffer.from(buf)));
   });
 };

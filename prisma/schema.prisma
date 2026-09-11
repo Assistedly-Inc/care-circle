@@ -23,11 +23,11 @@ model User {
   AuditLog         AuditLog[]
 }
 
-enum MemberRole {
-  COORDINATOR
-  CAREGIVER
-  FAMILY
-}
+// enum MemberRole {
+//   COORDINATOR
+//   CAREGIVER
+//   FAMILY
+// }
 
 model Case {
   id               String       @id @default(uuid())
@@ -51,7 +51,7 @@ model CaseMember {
   id     String     @id @default(uuid())
   caseId String
   userId String
-  role   MemberRole
+  role   String
   case   Case       @relation(fields: [caseId], references: [id])
   user   User       @relation(fields: [userId], references: [id])
 
@@ -72,12 +72,12 @@ model Medication {
   @@index([caseId])
 }
 
-enum TaskStatus {
-  PENDING
-  IN_PROGRESS
-  COMPLETED
-  BLOCKED
-}
+// enum TaskStatus {
+//   PENDING
+//   IN_PROGRESS
+//   COMPLETED
+//   BLOCKED
+// }
 
 model Task {
   id              String     @id @default(uuid())
@@ -86,7 +86,7 @@ model Task {
   description     String?
   ownerId         String?
   dueDate         DateTime
-  status          TaskStatus @default(PENDING)
+  status          String @default("PENDING")
   escalationLevel Int        @default(0)
   comments        Comment[]
   case            Case       @relation(fields: [caseId], references: [id])

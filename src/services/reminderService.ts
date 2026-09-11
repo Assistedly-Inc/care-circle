@@ -29,7 +29,7 @@ export const scheduleReminders = () => {
         }
         if (task.escalationLevel && task.escalationLevel > 0) {
           // Fallback to SMS to coordinator if owner missing phone
-          const phone = task.owner?.email || task.case.coordinator.email; // placeholder: using email as phone in demo
+          const phone = task.owner?.email || task.case?.coordinatorId; // fallback to case coordinator if owner missing
           await sendSms(phone, message);
         }
       }

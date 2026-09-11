@@ -4,8 +4,10 @@ import caseRouter from './api/cases';
 import medicationRouter from './api/medications';
 import taskRouter from './api/tasks';
 import exportRouter from './api/export';
-import swaggerUi from 'swagger-ui-express';
-import swaggerDocument from '../swagger.yaml';
+import healthRouter from './api/health';
+// Swagger UI disabled for MVP preview
+// import swaggerUi from 'swagger-ui-express';
+// import swaggerDocument from '../swagger.yaml';
 
 const router = Router();
 
@@ -14,6 +16,7 @@ router.use('/cases', caseRouter);
 router.use('/medications', medicationRouter);
 router.use('/tasks', taskRouter);
 router.use('/export', exportRouter);
-router.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+router.use('/health', healthRouter);
+// router.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 export default router;

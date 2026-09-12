@@ -21,12 +21,14 @@ app.use('/api', routes);
 // Global error handler
 app.use(errorHandler);
 
-// Start reminder scheduler (runs in background)
-scheduleReminders();
+// Start reminder scheduler only in non‑test environments
+if (process.env.NODE_ENV !== 'test') {
+  scheduleReminders();
+}
 
 if (require.main === module) {
   const PORT = config.port;
-  app.listen(PORT, () => {
+  app.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 Server listening on http://localhost:${PORT}`);
   });
 }

@@ -1,4 +1,9 @@
 import request from 'supertest';
+
+// Ensure test environment does not start background jobs
+process.env.NODE_ENV = 'test';
+
+// Import the Express app (ts-jest will handle the .ts file)
 import { app } from '../../server';
 
 test('GET /api/health returns status 200', async () => {

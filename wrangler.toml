@@ -1,0 +1,7 @@
+name = "care-backend-mvp"
+main = "worker.js"
+compatibility_date = "2026-09-10"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "f77ba7cffe4e4c0482cbe37cb11f8648"

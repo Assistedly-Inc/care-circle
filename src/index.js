@@ -12,6 +12,34 @@ function badRequest(message) { return json({ error: message }, 400); }
 function now() { return new Date().toISOString(); }
 
 
+
+const TASK_STATUSES = ['todo', 'in_progress', 'blocked', 'done', 'cancelled'];
+const TASK_TEMPLATES = [
+  { id: 'follow-up', title: 'Schedule follow-up appointment', defaultOwner: 'Care coordinator', defaultDueDays: 7 },
+  { id: 'med-rec', title: 'Complete medication reconciliation', defaultOwner: 'Nurse', defaultDueDays: 2 },
+  { id: 'transport', title: 'Confirm transportation', defaultOwner: 'Family', defaultDueDays: 3 },
+  { id: 'home-safety', title: 'Home safety check', defaultOwner: 'Care coordinator', defaultDueDays: 5 }
+];
+function normalizeTask(input = {}, existing = {}) {
+  const t = now();
+  const status = input.status ?? existing.status ?? 'todo';
+  return {
+    id: existing.id || input.id || crypto.randomUUID(),
+    templateId: input.templateId ?? existing.templateId ?? '',
+    title: input.title ?? existing.title ?? '',
+    description: input.description ?? existing.description ?? '',
+    owner: input.owner ?? existing.owner ?? '',
+    dueDate: input.dueDate ?? existing.dueDate ?? '',
+    status: TASK_STATUSES.includes(status) ? status : 'todo',
+    escalation: Boolean(input.escalation ?? existing.escalation ?? false),
+    escalatedAt: input.escalatedAt ?? existing.escalatedAt ?? null,
+    comments: Array.isArray(input.comments) ? input.comments : (existing.comments || []),
+    createdAt: existing.createdAt || input.createdAt || t,
+    updatedAt: t
+  };
+}
+function normalizeTasks(tasks = []) { return Array.isArray(tasks) ? tasks.map(t => normalizeTask(t)) : []; }
+
 function normalizeMedication(input = {}, existing = {}) {
   const t = now();
   return {
@@ -28,6 +56,7 @@ function normalizeMedication(input = {}, existing = {}) {
     updatedAt: t
   };
 }
+
 function normalizeMedications(meds = []) { return Array.isArray(meds) ? meds.map(m => normalizeMedication(m)) : []; }
 
 function normalizeCareProfile(input = {}, existing = {}) {
@@ -57,6 +86,7 @@ function normalizeCareProfile(input = {}, existing = {}) {
       diet: input.dischargeInstructions?.diet ?? existing.dischargeInstructions?.diet ?? ''
     },
     consent: input.consent ?? existing.consent ?? { given: false, scope: '', givenBy: '', givenAt: null },
+    tasks: Array.isArray(input.tasks) ? normalizeTasks(input.tasks) : normalizeTasks(existing.tasks || []),
     status: input.status ?? existing.status ?? 'active',
     createdAt: existing.createdAt || now(),
     updatedAt: now()
@@ -83,6 +113,8 @@ async function handleApi(request, env, url) {
   const path = url.pathname;
   const method = request.method;
 
+  if (path === '/api/task-templates' && method === 'GET') return json({ templates: TASK_TEMPLATES, statuses: TASK_STATUSES });
+
   if (path === '/api/health' && method === 'GET') {
     await env.CARE_KV.put('health:last', now());
     return json({ status: 'ok', kv: true, service: 'care-backend-mvp', feature: 'shared-care-profile' });
@@ -100,6 +132,61 @@ async function handleApi(request, env, url) {
     await env.CARE_KV.put(`profile:${profile.id}`, JSON.stringify(profile));
     await audit(env, profile.id, 'careProfile.create', { fields: Object.keys(body) });
     return json({ success: true, profile, patient: profile }, 201);
+  }
+
+  const taskMatch = path.match(/^\/api\/(?:care-profiles|patients)\/([^/]+)\/tasks(?:\/([^/]+))?(?:\/(comments|escalate))?$/);
+  if (taskMatch) {
+    const [, id, taskId, action] = taskMatch;
+    const key = `profile:${id}`;
+    const existing = await env.CARE_KV.get(key, 'json');
+    if (!existing) return notFound('Care profile not found');
+    existing.tasks = normalizeTasks(existing.tasks || []);
+    if (!taskId && method === 'GET') return json({ tasks: existing.tasks, templates: TASK_TEMPLATES, statuses: TASK_STATUSES });
+    if (!taskId && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      let seed = body;
+      if (body.templateId && !body.title) {
+        const tpl = TASK_TEMPLATES.find(t => t.id === body.templateId);
+        if (tpl) seed = { ...body, title: tpl.title, owner: body.owner || tpl.defaultOwner, dueDate: body.dueDate || new Date(Date.now()+tpl.defaultDueDays*86400000).toISOString().slice(0,10) };
+      }
+      const task = normalizeTask(seed);
+      if (!task.title) return badRequest('Task title is required');
+      existing.tasks.push(task); existing.updatedAt = now();
+      await env.CARE_KV.put(key, JSON.stringify(existing));
+      await audit(env, id, 'task.create', { taskId: task.id, title: task.title });
+      return json({ success: true, task, tasks: existing.tasks }, 201);
+    }
+    const idx = existing.tasks.findIndex(t => t.id === taskId);
+    if (idx < 0) return notFound('Task not found');
+    if (!action && method === 'GET') return json({ task: existing.tasks[idx] });
+    if (!action && (method === 'PUT' || method === 'PATCH')) {
+      const body = await request.json().catch(() => ({}));
+      existing.tasks[idx] = normalizeTask(body, existing.tasks[idx]); existing.updatedAt = now();
+      await env.CARE_KV.put(key, JSON.stringify(existing));
+      await audit(env, id, 'task.update', { taskId, fields: Object.keys(body) });
+      return json({ success: true, task: existing.tasks[idx], tasks: existing.tasks });
+    }
+    if (!action && method === 'DELETE') {
+      const [removed] = existing.tasks.splice(idx, 1); existing.updatedAt = now();
+      await env.CARE_KV.put(key, JSON.stringify(existing));
+      await audit(env, id, 'task.delete', { taskId, title: removed.title });
+      return json({ success: true, task: removed, tasks: existing.tasks });
+    }
+    if (action === 'comments' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const comment = { id: crypto.randomUUID(), text: body.text || '', author: body.author || 'frontend-tester', createdAt: now() };
+      if (!comment.text) return badRequest('Comment text is required');
+      existing.tasks[idx].comments = existing.tasks[idx].comments || []; existing.tasks[idx].comments.push(comment); existing.tasks[idx].updatedAt = now(); existing.updatedAt = now();
+      await env.CARE_KV.put(key, JSON.stringify(existing));
+      await audit(env, id, 'task.comment', { taskId, commentId: comment.id });
+      return json({ success: true, comment, task: existing.tasks[idx], tasks: existing.tasks });
+    }
+    if (action === 'escalate' && (method === 'POST' || method === 'PATCH')) {
+      existing.tasks[idx].escalation = true; existing.tasks[idx].escalatedAt = now(); existing.tasks[idx].updatedAt = now(); existing.updatedAt = now();
+      await env.CARE_KV.put(key, JSON.stringify(existing));
+      await audit(env, id, 'task.escalate', { taskId });
+      return json({ success: true, task: existing.tasks[idx], tasks: existing.tasks });
+    }
   }
 
   const medMatch = path.match(/^\/api\/(?:care-profiles|patients)\/([^/]+)\/medications\/([^/]+)(?:\/(verify|notes))?$/);
@@ -254,6 +341,13 @@ function html() { return `<!doctype html>
         <h3>Add medication</h3><div class="grid3"><input id="mName" placeholder="Medication"><input id="mDose" placeholder="10mg"><input id="mSchedule" placeholder="Daily 8 AM"></div><div class="grid" style="margin-top:8px"><input id="mSource" placeholder="Hospital discharge"><input id="mNotes" placeholder="Notes"></div><button class="btn" style="margin-top:8px" onclick="addMed()">Add Medication</button>
       </div>
 
+      <div class="card"><h2>Task System <span class="tiny">#4 templates, owner, due-date, status, comments, escalation</span></h2>
+        <div class="grid3"><select id="tTemplate"><option value="">Custom task</option></select><input id="tTitle" placeholder="Task title"><input id="tOwner" placeholder="Owner"></div>
+        <div class="grid3" style="margin-top:8px"><input id="tDue" type="date"><select id="tStatus"><option value="todo">todo</option><option value="in_progress">in_progress</option><option value="blocked">blocked</option><option value="done">done</option><option value="cancelled">cancelled</option></select><input id="tDesc" placeholder="Description"></div>
+        <button class="btn" style="margin-top:8px" onclick="addTask()">Add Task</button>
+        <table class="table" style="margin-top:12px"><thead><tr><th>Task</th><th>Owner</th><th>Due</th><th>Status</th><th>Esc</th><th>Comments</th><th></th></tr></thead><tbody id="tasksBody"></tbody></table>
+      </div>
+
       <div class="card"><h2>Discharge Instructions</h2><div class="grid"><div><label>Discharge date</label><input id="dDate" type="date"></div><div><label>Follow-up</label><input id="dFollow"></div></div><label style="margin-top:8px">Summary</label><textarea id="dSummary"></textarea><div class="grid" style="margin-top:8px"><div><label>Activity</label><input id="dActivity"></div><div><label>Diet</label><input id="dDiet"></div></div><label style="margin-top:8px">Red flags, comma separated</label><input id="dRed"><button class="btn" style="margin-top:10px" onclick="saveDischarge()">Save Discharge Instructions</button></div>
 
       <div class="card"><h2>Audit Log</h2><button class="btn secondary small" onclick="loadAudit()">Load Audit</button><div id="audit" class="output" style="margin-top:10px"></div></div>
@@ -272,7 +366,7 @@ function nameOf(p){return p.patient.displayName || (p.patient.firstName+' '+p.pa
 async function createProfile(){if(!val('newName')) return toast('Name required',true); const d=await req('/api/care-profiles',{method:'POST',body:JSON.stringify({patient:{displayName:val('newName'),dateOfBirth:val('newDob'),primaryDiagnosis:val('newDx')},dischargeInstructions:{summary:val('newDischarge')}})}); selected=d.profile; toast('Profile created'); await loadProfiles(); render();}
 async function selectProfile(id){selected=profiles.find(p=>p.id===id); await loadSelected();}
 async function loadSelected(){if(!selected)return; const d=await req('/api/care-profiles/'+selected.id); selected=d.profile; await loadProfiles(); render();}
-function render(){if(!selected)return; $('empty').style.display='none'; $('editor').style.display='block'; $('title').textContent='Care Profile — '+nameOf(selected); const p=selected.patient; set('pFirst',p.firstName);set('pLast',p.lastName);set('pDisplay',p.displayName);set('pDob',p.dateOfBirth);set('pAge',p.age);set('pGender',p.gender);set('pPhone',p.phone);set('pStatus',selected.status);set('pDx',p.primaryDiagnosis);set('pAddress',p.address);set('pNotes',p.notes); renderContacts(); renderMeds(); const d=selected.dischargeInstructions||{}; set('dDate',d.dischargeDate);set('dFollow',d.followUp);set('dSummary',d.summary);set('dActivity',d.activity);set('dDiet',d.diet);set('dRed',(d.redFlags||[]).join(', ')); $('raw').textContent=JSON.stringify(selected,null,2)}
+function render(){if(!selected)return; $('empty').style.display='none'; $('editor').style.display='block'; $('title').textContent='Care Profile — '+nameOf(selected); const p=selected.patient; set('pFirst',p.firstName);set('pLast',p.lastName);set('pDisplay',p.displayName);set('pDob',p.dateOfBirth);set('pAge',p.age);set('pGender',p.gender);set('pPhone',p.phone);set('pStatus',selected.status);set('pDx',p.primaryDiagnosis);set('pAddress',p.address);set('pNotes',p.notes); renderContacts(); renderMeds(); const d=selected.dischargeInstructions||{}; set('dDate',d.dischargeDate);set('dFollow',d.followUp);set('dSummary',d.summary);set('dActivity',d.activity);set('dDiet',d.diet);set('dRed',(d.redFlags||[]).join(', ')); renderTasks(); loadTaskTemplates(); $('raw').textContent=JSON.stringify(selected,null,2)}
 function set(id,v){$(id).value=v||''} function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 async function savePatient(){const patient={firstName:val('pFirst'),lastName:val('pLast'),displayName:val('pDisplay'),dateOfBirth:val('pDob'),age:val('pAge'),gender:val('pGender'),phone:val('pPhone'),address:val('pAddress'),primaryDiagnosis:val('pDx'),notes:val('pNotes')}; const d=await req('/api/care-profiles/'+selected.id,{method:'PUT',body:JSON.stringify({patient,status:val('pStatus')})}); selected=d.profile; toast('Basic data saved'); render(); await loadProfiles()}
 function renderContacts(){const a=selected.emergencyContacts||[]; $('contactsBody').innerHTML=a.length?a.map((c,i)=>'<tr><td>'+esc(c.name)+'</td><td>'+esc(c.relationship)+'</td><td>'+esc(c.phone)+'</td><td>'+esc(c.email)+'</td><td><button class="btn danger small" onclick="removeContact('+i+')">Remove</button></td></tr>').join(''):'<tr><td colspan="5" class="muted">No contacts</td></tr>'}
@@ -285,6 +379,15 @@ async function verifyMed(i){const m=selected.medications[i]; const d=await req('
 async function editMedNotes(i){const m=selected.medications[i]; const notes=prompt('Medication notes',m.notes||''); if(notes===null)return; const d=await req('/api/care-profiles/'+selected.id+'/medications/'+m.id+'/notes',{method:'PATCH',body:JSON.stringify({notes})}); selected.medications=d.medications; toast('Medication notes updated'); renderMeds()}
 async function saveMeds(){const d=await req('/api/care-profiles/'+selected.id+'/medications',{method:'PUT',body:JSON.stringify({medications:selected.medications})}); selected.medications=d.medications; toast('Medications saved'); renderMeds(); clear(['mName','mDose','mSchedule','mSource','mNotes'])}
 async function saveDischarge(){const body={summary:val('dSummary'),dischargeDate:val('dDate'),followUp:val('dFollow'),activity:val('dActivity'),diet:val('dDiet'),redFlags:val('dRed').split(',').map(s=>s.trim()).filter(Boolean)}; const d=await req('/api/care-profiles/'+selected.id+'/discharge-instructions',{method:'PUT',body:JSON.stringify(body)}); selected.dischargeInstructions=d.dischargeInstructions; toast('Discharge saved')}
+
+async function loadTaskTemplates(){try{const d=await req('/api/task-templates'); const sel=$('tTemplate'); if(!sel||sel.dataset.loaded)return; sel.innerHTML='<option value="">Custom task</option>'+(d.templates||[]).map(t=>'<option value="'+esc(t.id)+'">'+esc(t.title)+'</option>').join(''); sel.dataset.loaded='1'; sel.onchange=()=>{const tpl=(d.templates||[]).find(t=>t.id===sel.value); if(tpl){set('tTitle',tpl.title);set('tOwner',tpl.defaultOwner||''); const due=new Date(Date.now()+(tpl.defaultDueDays||1)*86400000).toISOString().slice(0,10); set('tDue',due)}}}catch(e){}}
+function renderTasks(){const a=selected.tasks||[]; const el=$('tasksBody'); if(!el)return; el.innerHTML=a.length?a.map((t,i)=>'<tr><td>'+esc(t.title)+'<div class="tiny">'+esc(t.description||'')+'</div></td><td>'+esc(t.owner)+'</td><td>'+esc(t.dueDate)+'</td><td><select onchange="updateTaskStatus('+i+',this.value)">'+['todo','in_progress','blocked','done','cancelled'].map(s=>'<option value="'+s+'" '+(t.status===s?'selected':'')+'>'+s+'</option>').join('')+'</select></td><td>'+(t.escalation?'⚠️':'')+'</td><td>'+((t.comments||[]).length)+'</td><td><div class="row"><button class="btn secondary small" onclick="commentTask('+i+')">Comment</button><button class="btn secondary small" onclick="escalateTask('+i+')">Escalate</button><button class="btn danger small" onclick="removeTask('+i+')">Remove</button></div></td></tr>').join(''):'<tr><td colspan="7" class="muted">No tasks</td></tr>'}
+async function addTask(){const body={templateId:val('tTemplate'),title:val('tTitle'),owner:val('tOwner'),dueDate:val('tDue'),status:val('tStatus'),description:val('tDesc')}; const d=await req('/api/care-profiles/'+selected.id+'/tasks',{method:'POST',body:JSON.stringify(body)}); selected.tasks=d.tasks; toast('Task added'); renderTasks(); clear(['tTitle','tOwner','tDue','tDesc'])}
+async function updateTaskStatus(i,status){const t=selected.tasks[i]; const d=await req('/api/care-profiles/'+selected.id+'/tasks/'+t.id,{method:'PATCH',body:JSON.stringify({status})}); selected.tasks=d.tasks; toast('Task status updated'); renderTasks()}
+async function commentTask(i){const text=prompt('Comment text'); if(!text)return; const t=selected.tasks[i]; const d=await req('/api/care-profiles/'+selected.id+'/tasks/'+t.id+'/comments',{method:'POST',body:JSON.stringify({text,author:'frontend-tester'})}); selected.tasks=d.tasks; toast('Comment added'); renderTasks()}
+async function escalateTask(i){const t=selected.tasks[i]; const d=await req('/api/care-profiles/'+selected.id+'/tasks/'+t.id+'/escalate',{method:'POST'}); selected.tasks=d.tasks; toast('Task escalated'); renderTasks()}
+async function removeTask(i){const t=selected.tasks[i]; const d=await req('/api/care-profiles/'+selected.id+'/tasks/'+t.id,{method:'DELETE'}); selected.tasks=d.tasks; toast('Task removed'); renderTasks()}
+
 async function loadAudit(){if(!selected)return; const d=await req('/api/care-profiles/'+selected.id+'/audit'); $('audit').textContent=JSON.stringify(d.auditLog,null,2)}
 function clear(ids){ids.forEach(id=>set(id,''))}
 checkHealth().then(loadProfiles);

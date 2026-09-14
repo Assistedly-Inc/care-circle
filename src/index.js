@@ -11,6 +11,25 @@ function notFound(message = 'Not found') { return json({ error: message }, 404);
 function badRequest(message) { return json({ error: message }, 400); }
 function now() { return new Date().toISOString(); }
 
+
+function normalizeMedication(input = {}, existing = {}) {
+  const t = now();
+  return {
+    id: existing.id || input.id || crypto.randomUUID(),
+    name: input.name ?? existing.name ?? '',
+    source: input.source ?? existing.source ?? '',
+    dose: input.dose ?? input.dosage ?? existing.dose ?? existing.dosage ?? '',
+    schedule: input.schedule ?? existing.schedule ?? '',
+    notes: input.notes ?? existing.notes ?? '',
+    lastVerified: input.lastVerified ?? existing.lastVerified ?? null,
+    lastVerifiedBy: input.lastVerifiedBy ?? existing.lastVerifiedBy ?? '',
+    verified: Boolean(input.verified ?? existing.verified ?? existing.lastVerified ?? false),
+    createdAt: existing.createdAt || input.createdAt || t,
+    updatedAt: t
+  };
+}
+function normalizeMedications(meds = []) { return Array.isArray(meds) ? meds.map(m => normalizeMedication(m)) : []; }
+
 function normalizeCareProfile(input = {}, existing = {}) {
   const id = existing.id || crypto.randomUUID();
   return {
@@ -28,7 +47,7 @@ function normalizeCareProfile(input = {}, existing = {}) {
       notes: input.patient?.notes ?? input.notes ?? existing.patient?.notes ?? ''
     },
     emergencyContacts: Array.isArray(input.emergencyContacts) ? input.emergencyContacts : (existing.emergencyContacts || []),
-    medications: Array.isArray(input.medications) ? input.medications : (existing.medications || []),
+    medications: Array.isArray(input.medications) ? normalizeMedications(input.medications) : normalizeMedications(existing.medications || []),
     dischargeInstructions: {
       summary: input.dischargeInstructions?.summary ?? input.dischargeInstructions ?? existing.dischargeInstructions?.summary ?? '',
       dischargeDate: input.dischargeInstructions?.dischargeDate ?? input.dischargeDate ?? existing.dischargeInstructions?.dischargeDate ?? '',
@@ -83,6 +102,49 @@ async function handleApi(request, env, url) {
     return json({ success: true, profile, patient: profile }, 201);
   }
 
+  const medMatch = path.match(/^\/api\/(?:care-profiles|patients)\/([^/]+)\/medications\/([^/]+)(?:\/(verify|notes))?$/);
+  if (medMatch) {
+    const [, id, medId, action] = medMatch;
+    const key = `profile:${id}`;
+    const existing = await env.CARE_KV.get(key, 'json');
+    if (!existing) return notFound('Care profile not found');
+    existing.medications = normalizeMedications(existing.medications || []);
+    const idx = existing.medications.findIndex(m => m.id === medId || String(existing.medications.indexOf(m)) === medId);
+    if (idx < 0) return notFound('Medication not found');
+    if (method === 'GET' && !action) return json({ medication: existing.medications[idx] });
+    if ((method === 'PUT' || method === 'PATCH') && !action) {
+      const body = await request.json().catch(() => ({}));
+      existing.medications[idx] = normalizeMedication(body, existing.medications[idx]);
+      existing.updatedAt = now();
+      await env.CARE_KV.put(key, JSON.stringify(existing));
+      await audit(env, id, 'medication.update', { medicationId: existing.medications[idx].id, fields: Object.keys(body) });
+      return json({ success: true, medication: existing.medications[idx], medications: existing.medications });
+    }
+    if (method === 'DELETE' && !action) {
+      const [removed] = existing.medications.splice(idx, 1);
+      existing.updatedAt = now();
+      await env.CARE_KV.put(key, JSON.stringify(existing));
+      await audit(env, id, 'medication.delete', { medicationId: removed.id, name: removed.name });
+      return json({ success: true, medication: removed, medications: existing.medications });
+    }
+    if ((method === 'POST' || method === 'PATCH') && action === 'verify') {
+      const body = await request.json().catch(() => ({}));
+      existing.medications[idx] = normalizeMedication({ ...existing.medications[idx], verified: true, lastVerified: now(), lastVerifiedBy: body.verifiedBy || body.actor || 'mvp-user' }, existing.medications[idx]);
+      existing.updatedAt = now();
+      await env.CARE_KV.put(key, JSON.stringify(existing));
+      await audit(env, id, 'medication.verify', { medicationId: existing.medications[idx].id });
+      return json({ success: true, medication: existing.medications[idx], medications: existing.medications });
+    }
+    if ((method === 'PATCH' || method === 'PUT') && action === 'notes') {
+      const body = await request.json().catch(() => ({}));
+      existing.medications[idx] = normalizeMedication({ ...existing.medications[idx], notes: body.notes ?? '' }, existing.medications[idx]);
+      existing.updatedAt = now();
+      await env.CARE_KV.put(key, JSON.stringify(existing));
+      await audit(env, id, 'medication.notes.update', { medicationId: existing.medications[idx].id });
+      return json({ success: true, medication: existing.medications[idx], medications: existing.medications });
+    }
+  }
+
   const profileMatch = path.match(/^\/api\/(?:care-profiles|patients)\/([^/]+)(?:\/(emergency-contacts|medications|discharge-instructions|audit))?$/);
   if (profileMatch) {
     const [, id, sub] = profileMatch;
@@ -113,6 +175,20 @@ async function handleApi(request, env, url) {
       await env.CARE_KV.put(key, JSON.stringify(existing));
       await audit(env, id, 'medications.update', { count: existing.medications.length });
       return json({ success: true, medications: existing.medications });
+    }
+    if (sub === 'medications' && method === 'GET') {
+      return json({ medications: normalizeMedications(existing.medications || []) });
+    }
+    if (sub === 'medications' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const med = normalizeMedication(body);
+      if (!med.name) return badRequest('Medication name is required');
+      existing.medications = normalizeMedications(existing.medications || []);
+      existing.medications.push(med);
+      existing.updatedAt = now();
+      await env.CARE_KV.put(key, JSON.stringify(existing));
+      await audit(env, id, 'medication.create', { medicationId: med.id, name: med.name });
+      return json({ success: true, medication: med, medications: existing.medications }, 201);
     }
     if (sub === 'discharge-instructions' && method === 'PUT') {
       const body = await request.json().catch(() => ({}));
@@ -174,7 +250,7 @@ function html() { return `<!doctype html>
         <h3>Add contact</h3><div class="grid3"><input id="cName" placeholder="Name"><input id="cRel" placeholder="Relationship"><input id="cPhone" placeholder="Phone"></div><div class="row" style="margin-top:8px"><input id="cEmail" placeholder="Email"><button class="btn" onclick="addContact()">Add Contact</button></div>
       </div>
 
-      <div class="card"><h2>Medication List</h2><table class="table"><thead><tr><th>Name</th><th>Dose</th><th>Schedule</th><th>Source</th><th>Notes</th><th></th></tr></thead><tbody id="medsBody"></tbody></table>
+      <div class="card"><h2>Medication List <span class="tiny">#3 source, dose, schedule, notes, last verified</span></h2><table class="table"><thead><tr><th>Name</th><th>Dose</th><th>Schedule</th><th>Source</th><th>Notes</th><th>Last verified</th><th></th></tr></thead><tbody id="medsBody"></tbody></table>
         <h3>Add medication</h3><div class="grid3"><input id="mName" placeholder="Medication"><input id="mDose" placeholder="10mg"><input id="mSchedule" placeholder="Daily 8 AM"></div><div class="grid" style="margin-top:8px"><input id="mSource" placeholder="Hospital discharge"><input id="mNotes" placeholder="Notes"></div><button class="btn" style="margin-top:8px" onclick="addMed()">Add Medication</button>
       </div>
 
@@ -202,8 +278,12 @@ async function savePatient(){const patient={firstName:val('pFirst'),lastName:val
 function renderContacts(){const a=selected.emergencyContacts||[]; $('contactsBody').innerHTML=a.length?a.map((c,i)=>'<tr><td>'+esc(c.name)+'</td><td>'+esc(c.relationship)+'</td><td>'+esc(c.phone)+'</td><td>'+esc(c.email)+'</td><td><button class="btn danger small" onclick="removeContact('+i+')">Remove</button></td></tr>').join(''):'<tr><td colspan="5" class="muted">No contacts</td></tr>'}
 async function addContact(){selected.emergencyContacts=selected.emergencyContacts||[]; selected.emergencyContacts.push({name:val('cName'),relationship:val('cRel'),phone:val('cPhone'),email:val('cEmail')}); await saveContacts()}
 async function removeContact(i){selected.emergencyContacts.splice(i,1); await saveContacts()} async function saveContacts(){const d=await req('/api/care-profiles/'+selected.id+'/emergency-contacts',{method:'PUT',body:JSON.stringify({emergencyContacts:selected.emergencyContacts})}); selected.emergencyContacts=d.emergencyContacts; toast('Contacts saved'); renderContacts(); clear(['cName','cRel','cPhone','cEmail'])}
-function renderMeds(){const a=selected.medications||[]; $('medsBody').innerHTML=a.length?a.map((m,i)=>'<tr><td>'+esc(m.name)+'</td><td>'+esc(m.dose||m.dosage)+'</td><td>'+esc(m.schedule)+'</td><td>'+esc(m.source)+'</td><td>'+esc(m.notes)+'</td><td><button class="btn danger small" onclick="removeMed('+i+')">Remove</button></td></tr>').join(''):'<tr><td colspan="6" class="muted">No medications</td></tr>'}
-async function addMed(){selected.medications=selected.medications||[]; selected.medications.push({name:val('mName'),dose:val('mDose'),schedule:val('mSchedule'),source:val('mSource'),notes:val('mNotes')}); await saveMeds()} async function removeMed(i){selected.medications.splice(i,1); await saveMeds()} async function saveMeds(){const d=await req('/api/care-profiles/'+selected.id+'/medications',{method:'PUT',body:JSON.stringify({medications:selected.medications})}); selected.medications=d.medications; toast('Medications saved'); renderMeds(); clear(['mName','mDose','mSchedule','mSource','mNotes'])}
+function renderMeds(){const a=selected.medications||[]; $('medsBody').innerHTML=a.length?a.map((m,i)=>'<tr><td>'+esc(m.name)+'</td><td>'+esc(m.dose||m.dosage)+'</td><td>'+esc(m.schedule)+'</td><td>'+esc(m.source)+'</td><td>'+esc(m.notes)+'</td><td>'+(m.lastVerified?esc(new Date(m.lastVerified).toLocaleString())+'<div class="tiny">'+esc(m.lastVerifiedBy||'')+'</div>':'<span class="tiny">not verified</span>')+'</td><td><div class="row"><button class="btn secondary small" onclick="editMedNotes('+i+')">Notes</button><button class="btn secondary small" onclick="verifyMed('+i+')">Verify</button><button class="btn danger small" onclick="removeMed('+i+')">Remove</button></div></td></tr>').join(''):'<tr><td colspan="7" class="muted">No medications</td></tr>'}
+async function addMed(){const d=await req('/api/care-profiles/'+selected.id+'/medications',{method:'POST',body:JSON.stringify({name:val('mName'),dose:val('mDose'),schedule:val('mSchedule'),source:val('mSource'),notes:val('mNotes')})}); selected.medications=d.medications; toast('Medication added'); renderMeds(); clear(['mName','mDose','mSchedule','mSource','mNotes'])}
+async function removeMed(i){const m=selected.medications[i]; const d=await req('/api/care-profiles/'+selected.id+'/medications/'+m.id,{method:'DELETE'}); selected.medications=d.medications; toast('Medication removed'); renderMeds()}
+async function verifyMed(i){const m=selected.medications[i]; const d=await req('/api/care-profiles/'+selected.id+'/medications/'+m.id+'/verify',{method:'POST',body:JSON.stringify({verifiedBy:'frontend-tester'})}); selected.medications=d.medications; toast('Medication verified'); renderMeds()}
+async function editMedNotes(i){const m=selected.medications[i]; const notes=prompt('Medication notes',m.notes||''); if(notes===null)return; const d=await req('/api/care-profiles/'+selected.id+'/medications/'+m.id+'/notes',{method:'PATCH',body:JSON.stringify({notes})}); selected.medications=d.medications; toast('Medication notes updated'); renderMeds()}
+async function saveMeds(){const d=await req('/api/care-profiles/'+selected.id+'/medications',{method:'PUT',body:JSON.stringify({medications:selected.medications})}); selected.medications=d.medications; toast('Medications saved'); renderMeds(); clear(['mName','mDose','mSchedule','mSource','mNotes'])}
 async function saveDischarge(){const body={summary:val('dSummary'),dischargeDate:val('dDate'),followUp:val('dFollow'),activity:val('dActivity'),diet:val('dDiet'),redFlags:val('dRed').split(',').map(s=>s.trim()).filter(Boolean)}; const d=await req('/api/care-profiles/'+selected.id+'/discharge-instructions',{method:'PUT',body:JSON.stringify(body)}); selected.dischargeInstructions=d.dischargeInstructions; toast('Discharge saved')}
 async function loadAudit(){if(!selected)return; const d=await req('/api/care-profiles/'+selected.id+'/audit'); $('audit').textContent=JSON.stringify(d.auditLog,null,2)}
 function clear(ids){ids.forEach(id=>set(id,''))}

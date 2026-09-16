@@ -2,6 +2,23 @@ name = "care-backend-mvp"
 main = "worker.js"
 compatibility_date = "2026-09-10"
 
+# Using Web Crypto API natively — no Node polyfills needed
+compatibility_flags = []
+
 [[kv_namespaces]]
 binding = "KV"
 id = "f77ba7cffe4e4c0482cbe37cb11f8648"
+
+# Run reminders every 15 minutes — 24h before due + escalation checking
+[triggers]
+crons = ["*/15 * * * *"]
+
+# --- SECRETS (set via Wrangler CLI: wrangler secret put <KEY> ) ---
+# TWILIO_ACCOUNT_SID   = ""
+# TWILIO_AUTH_TOKEN    = ""
+# TWILIO_FROM_NUMBER   = ""
+# VAPID_PUBLIC_KEY     = ""
+# VAPID_PRIVATE_JWK    = ""   # JSON JWK of P-256 private key
+# VAPID_SUBJECT        = "mailto:admin@carecircle.com"
+# RESEND_API_KEY       = ""
+# RESEND_FROM_EMAIL    = "notifications@carecircle.com"

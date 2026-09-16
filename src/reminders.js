@@ -1,6 +1,6 @@
 import { getTask, listPendingTasks, updateTask, escalateTask } from './tasks.js';
 import { sendWebPush } from './push.js';
-import { sendTwilioSms, buildReminderSms } from './twilio-sms.js';
+import { inboxDeliver, buildInboxMessage } from './inkbox.js';
 import { nowISO, hoursUntilDue } from './utils.js';
 
 export async function checkAndSendReminders(kv, env) {
@@ -45,14 +45,17 @@ export async function checkAndSendReminders(kv, env) {
 }
 
 async function sendReminder(kv, env, task, type) {
-  const result = { taskId: task.id, type, push: null, sms: null };
+  const result = { taskId: task.id, type, push: null, inbox: null };
+
+  // Determine userId for inbox delivery
+  const userId = task.assigneeId || task.caseId;
 
   try {
-    // Push notification
+    // Web Push notification
     if (task.assigneeNotifications?.pushSubscription && env.VAPID_PUBLIC_KEY) {
       const payload = {
         title: `CareCircle Reminder: ${type}`,
-        body: buildReminderSms(task, type),
+        body: buildInboxMessage(task, type).body,
         taskId: task.id,
         caseId: task.caseId,
         type,
@@ -64,13 +67,17 @@ async function sendReminder(kv, env, task, type) {
   }
 
   try {
-    // SMS
-    if (task.assigneePhone && env.TWILIO_ACCOUNT_SID) {
-      const msg = buildReminderSms(task, type);
-      result.sms = await sendTwilioSms(env, task.assigneePhone, msg);
-    }
+    // Deliver to in-app Inbox (Inkbox)
+    const msgData = buildInboxMessage(task, type);
+    result.inbox = await inboxDeliver(kv, {
+      userId,
+      type,
+      taskId: task.id,
+      caseId: task.caseId,
+      ...msgData,
+    });
   } catch (err) {
-    result.sms = { error: err.message };
+    result.inbox = { error: err.message };
   }
 
   // Audit log entry

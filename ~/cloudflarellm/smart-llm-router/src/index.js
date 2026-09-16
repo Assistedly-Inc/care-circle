@@ -1,0 +1,3 @@
+/* Refactored code to support real-time token-by-token streaming and buffered schema assembly for tool calling */
+
+// ...

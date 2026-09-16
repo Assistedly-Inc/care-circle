@@ -14,11 +14,12 @@ id = "f77ba7cffe4e4c0482cbe37cb11f8648"
 crons = ["*/15 * * * *"]
 
 # --- SECRETS (set via Wrangler CLI: wrangler secret put <KEY> ) ---
-# TWILIO_ACCOUNT_SID   = ""
-# TWILIO_AUTH_TOKEN    = ""
-# TWILIO_FROM_NUMBER   = ""
 # VAPID_PUBLIC_KEY     = ""
 # VAPID_PRIVATE_JWK    = ""   # JSON JWK of P-256 private key
 # VAPID_SUBJECT        = "mailto:admin@carecircle.com"
 # RESEND_API_KEY       = ""
 # RESEND_FROM_EMAIL    = "notifications@carecircle.com"
+# """
+# Twilio SMS has been replaced by Inkbox (in-box notifications).
+# No SMS credentials needed.
+# """

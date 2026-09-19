@@ -76,7 +76,7 @@ export default function SiteNav() {
             Features
             <svg className="inline-block w-4 h-4 ml-0.5 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
           </button>
-          <div className="absolute top-full right-0 mt-1.5 w-48 bg-white rounded-[var(--radius-md)] shadow-[var(--shadow-md)] border border-[var(--color-border)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all origin-top-right p-2 grid grid-cols-2 gap-1">
+          <div className="absolute top-full right-0 mt-2 w-52 bg-white rounded-[var(--radius-md)] shadow-[var(--shadow-md)] border border-[var(--color-border)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all origin-top-right p-3 grid grid-cols-2 gap-2">
             {featureLinks.map(f => {
               const active = isActive(f.href, pathname);
               return (

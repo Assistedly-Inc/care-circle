@@ -59,7 +59,7 @@ export default function CaregiverPage() {
 
       <section className="relative overflow-hidden">
         <div className="relative h-[260px] md:h-[300px]">
-          <img src="/images/elderly-home.jpg" alt="Senior woman comfortably at home" className="absolute inset-0 w-full h-full object-cover" />
+          <img src="/images/senior-care-team.jpg" alt="Senior woman comfortably at home" className="absolute inset-0 w-full h-full object-cover" />
           <div className="absolute inset-0 bg-[var(--color-primary)]/22" />
           <div className="container relative h-full flex items-center justify-center">
             <div className="max-w-2xl text-center">

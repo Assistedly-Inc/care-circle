@@ -4,7 +4,7 @@ const stakeholders = [
   { slug: 'family', title: 'Families', desc: 'Coordinate everything in the critical first 30 days after discharge.', image: '/images/senior-daughter.jpg', color: 'bg-[#e8f4ef] text-[#4a7c7e]' },
   { slug: 'professional', title: 'Facilities', desc: 'Bridge the gap between your skilled care and safe outcomes at home.', image: '/images/nurse-senior.jpg', color: 'bg-[#ede8f2] text-[#6d1247]' },
   { slug: 'caregiver', title: 'Caregivers', desc: 'Stay connected with medications, tasks, and health updates.', image: '/images/grandma-granddaughter.jpg', color: 'bg-[#f5ede5] text-[#c4956a]' },
-  { slug: 'patient', title: 'Your Loved One', desc: 'Feel heard, supported, and never alone during recovery.', image: '/images/elderly-home.jpg', color: 'bg-[#e8eef4] text-[#4a6b8a]' },
+  { slug: 'patient', title: 'Your Loved One', desc: 'Feel heard, supported, and never alone during recovery.', image: '/images/senior-home.jpg', color: 'bg-[#e8eef4] text-[#4a6b8a]' },
 ];
 
 const transitionPhases = [
@@ -26,7 +26,7 @@ export default function HomePage() {
           />
           <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.72)_0%,rgba(0,0,0,0.35)_50%,rgba(0,0,0,0.12)_100%)]" />
 
-          <div className="container relative h-full flex flex-col items-start justify-end pb-7 md:pb-9">
+          <div className="container relative h-full flex flex-col items-start justify-end pb-10 md:pb-14">
             <div className="max-w-2xl">
               <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/15 backdrop-blur-sm rounded-full border border-white/30 mb-3">
                 <svg className="w-4 h-4 text-white/90" viewBox="0 0 24 24" fill="currentColor">
@@ -80,7 +80,7 @@ export default function HomePage() {
               </div>
             </div>
             <div className="relative rounded-[var(--radius-lg)] overflow-hidden shadow-md">
-              <img src="/images/elderly-home.jpg" alt="Senior in comfortable home surroundings" className="w-full h-full object-cover" />
+              <img src="/images/senior-home.jpg" alt="Senior in comfortable home surroundings" className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-[var(--color-primary)]/10" />
             </div>
           </div>

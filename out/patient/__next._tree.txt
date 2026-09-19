@@ -1,4 +1,4 @@
-:HL["/_next/static/chunks/1-io0gvhdgt88.css","style"]
-:HL["/images/elderly-home.jpg","image"]
+:HL["/_next/static/chunks/2lmvmoje8kp5u.css","style"]
+:HL["/images/senior-smile.jpg","image"]
 :HL["/images/senior-daughter.jpg","image"]
-0:{"tree":{"name":"","param":null,"prefetchHints":4176,"slots":{"children":{"name":"(persona)","param":null,"prefetchHints":4192,"slots":{"children":{"name":"patient","param":null,"prefetchHints":4192,"slots":{"children":{"name":"__PAGE__","param":null,"prefetchHints":4256,"slots":null}}}}}}},"staleTime":300,"buildId":"Z-HvhepzEvhmZCikTM_Ml"}
+0:{"tree":{"name":"","param":null,"prefetchHints":4176,"slots":{"children":{"name":"(persona)","param":null,"prefetchHints":4192,"slots":{"children":{"name":"patient","param":null,"prefetchHints":4192,"slots":{"children":{"name":"__PAGE__","param":null,"prefetchHints":4256,"slots":null}}}}}}},"staleTime":300,"buildId":"d0868IhF_WCK5rml67_cI"}

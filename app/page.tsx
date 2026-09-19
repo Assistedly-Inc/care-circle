@@ -4,7 +4,7 @@ const stakeholders = [
   { slug: 'family', title: 'Families', desc: 'Coordinate everything in the critical first 30 days after discharge.', image: '/images/senior-daughter.jpg', color: 'bg-[#e8f4ef] text-[#4a7c7e]' },
   { slug: 'professional', title: 'Facilities', desc: 'Bridge the gap between your skilled care and safe outcomes at home.', image: '/images/nurse-senior.jpg', color: 'bg-[#ede8f2] text-[#6d1247]' },
   { slug: 'caregiver', title: 'Caregivers', desc: 'Stay connected with medications, tasks, and health updates.', image: '/images/grandma-granddaughter.jpg', color: 'bg-[#f5ede5] text-[#c4956a]' },
-  { slug: 'patient', title: 'Your Loved One', desc: 'Feel heard, supported, and never alone during recovery.', image: '/images/senior-home.jpg', color: 'bg-[#e8eef4] text-[#4a6b8a]' },
+  { slug: 'patient', title: 'Your Loved One', desc: 'Feel heard, supported, and never alone during recovery.', image: '/images/senior-navigating.jpg', color: 'bg-[#e8eef4] text-[#4a6b8a]' },
 ];
 
 const transitionPhases = [
@@ -20,8 +20,8 @@ export default function HomePage() {
       <section className="relative w-full overflow-hidden">
         <div className="relative h-[clamp(260px,32vw,360px)]">
           <img
-            src="/images/seniors-family.jpg"
-            alt="Family welcoming a loved one home from the hospital"
+            src="/images/senior-walker.jpg"
+            alt="Senior navigating their home independently"
             className="absolute inset-0 w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.72)_0%,rgba(0,0,0,0.35)_50%,rgba(0,0,0,0.12)_100%)]" />
@@ -80,7 +80,7 @@ export default function HomePage() {
               </div>
             </div>
             <div className="relative rounded-[var(--radius-lg)] overflow-hidden shadow-md">
-              <img src="/images/senior-home.jpg" alt="Senior in comfortable home surroundings" className="w-full h-full object-cover" />
+              <img src="/images/bath-safety.jpg" alt="Safe bathroom for elderly home care" className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-[var(--color-primary)]/10" />
             </div>
           </div>
@@ -101,9 +101,6 @@ export default function HomePage() {
                 <div className="absolute inset-0 bg-[var(--color-primary)]/10" />
               </div>
               <div className="p-5">
-                <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-3 ${s.color} text-sm font-extrabold shadow-sm`}>
-                  {s.title[0]}
-                </div>
                 <h3 className="text-base font-extrabold text-[var(--color-text)] mb-1 group-hover:text-[var(--color-primary)] transition-colors">{s.title}</h3>
                 <p className="text-sm text-[var(--color-text-light)] leading-relaxed">{s.desc}</p>
               </div>

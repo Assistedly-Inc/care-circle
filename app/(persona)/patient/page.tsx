@@ -13,8 +13,8 @@ export default function PatientPage() {
       <section className="relative overflow-hidden">
         <div className="relative h-[clamp(280px,35vw,380px)]">
           <img
-            src="/images/senior-smile.jpg"
-            alt="Senior woman at home with family support"
+            src="/images/senior-navigating.jpg"
+            alt="Senior navigating daily life at home with support"
             className="absolute inset-0 w-full h-full object-cover object-top"
           />
           <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.7)_0%,rgba(0,0,0,0.3)_50%,rgba(0,0,0,0.1)_100%)]" />

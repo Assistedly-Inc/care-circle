@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 
 const API_BASE = 'https://care-backend-mvp.forwardjump-com198.workers.dev';
@@ -48,7 +49,7 @@ export default function AuthFeaturePage() {
 
         <section className="card">
           <h2 className="siteSurfaceSectionTitle">Audit Middleware</h2>
-          <p>Every action is logged with before/after snapshots via KV storage. See the <a href="/features/audit">Audit page</a> for live audit logs.</p>
+          <p>Every action is logged with before/after snapshots via KV storage. See the <Link href="/features/audit/">Audit page</Link> for live audit logs.</p>
         </section>
       </div>
     </div>

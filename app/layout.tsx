@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import './globals.css';
 import SiteNav from './SiteNav';
 
 export const metadata: Metadata = {
@@ -6,7 +7,20 @@ export const metadata: Metadata = {
     default: 'Care Circle | Coordinated Care Platform',
     template: '%s | Care Circle',
   },
-  description: 'Care Circle helps families, caregivers, and healthcare professionals coordinate around shared care profiles.',
+  description: 'Care Circle helps families, caregivers, and healthcare professionals coordinate around shared care profiles. Private, secure, and beautifully simple.',
+  keywords: [
+    'care coordination',
+    'family caregiving',
+    'healthcare management',
+    'care circle',
+    'patient care',
+    'caregiver tools',
+  ],
+  openGraph: {
+    title: 'Care Circle | Coordinated Care Platform',
+    description: 'Care Circle helps families, caregivers, and healthcare professionals coordinate around shared care profiles.',
+    type: 'website',
+  },
 };
 
 export default function RootLayout({
@@ -16,9 +30,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>
+      <body className="antialiased flex flex-col min-h-screen">
         <SiteNav />
-        <main id="main-content">
+        <main id="main-content" className="flex-1">
           {children}
         </main>
       </body>

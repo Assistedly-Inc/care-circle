@@ -12,7 +12,7 @@ import type {
   DischargeInstructions,
 } from '@/types';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://care-circle-backend.forwardjump-com198.workers.dev';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://care-backend-mvp.forwardjump-com198.workers.dev';
 
 async function api<T>(path: string, options?: RequestInit): Promise<T> {
   const url = `${API_BASE}${path}`;
@@ -108,6 +108,11 @@ export const profilesApi = {
     api<{ dischargeInstructions: DischargeInstructions }>(`/api/care-profiles/${id}/discharge-instructions`, {
       method: 'PUT',
       body: JSON.stringify(instructions),
+    }),
+  addTask: (id: string, data: Omit<Task, 'id'>) =>
+    api<{ task: Task }>(`/api/care-profiles/${id}/tasks`, {
+      method: 'POST',
+      body: JSON.stringify(data),
     }),
   audit: (id: string) => api<{ auditLog: AuditLogEntry[] }>(`/api/care-profiles/${id}/audit`),
 };

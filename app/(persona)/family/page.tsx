@@ -21,8 +21,8 @@ export default function FamilyPage() {
       <section className="relative overflow-hidden">
         <div className="relative h-[clamp(280px,35vw,380px)]">
           <img
-            src="/images/hero-elderly-care.jpg"
-            alt="Family preparing for a loved one's return home"
+            src="/images/senior-daughter.jpg"
+            alt="Senior woman with caregiver daughter at home"
             className="absolute inset-0 w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.7)_0%,rgba(0,0,0,0.3)_50%,rgba(0,0,0,0.1)_100%)]" />
@@ -39,7 +39,7 @@ export default function FamilyPage() {
               <p className="text-base text-white/90 max-w-xl leading-relaxed mb-6 drop-shadow-sm">
                 The discharge planner hands you a folder. Now what? Care Circle turns that folder into a shared living plan that keeps everyone connected through the first 30 days.
               </p>
-              <Link href="/features/cases" className="btn btn-primary btn-lg shadow-md">
+              <Link href="/features/cases/" className="btn btn-primary btn-lg shadow-md">
                 Start a Transition Plan
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
               </Link>
@@ -93,7 +93,7 @@ export default function FamilyPage() {
 
       <section className="relative overflow-hidden">
         <div className="relative h-[260px] md:h-[300px]">
-          <img src="/images/family-generations.jpg" alt="Multi-generational family together" className="absolute inset-0 w-full h-full object-cover" />
+          <img src="/images/elderly-home.jpg" alt="Senior woman relaxing in her home" className="absolute inset-0 w-full h-full object-cover" />
           <div className="absolute inset-0 bg-[var(--color-secondary)]/20" />
           <div className="container relative h-full flex items-center justify-center">
             <div className="max-w-2xl text-center">
@@ -113,8 +113,8 @@ export default function FamilyPage() {
             Create your first care transition plan before the discharge even happens. Free. No credit card required.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4">
-            <Link href="/features/cases" className="btn btn-primary">Start Your First Plan</Link>
-            <Link href="/professional" className="btn btn-outline">For Facilities & Planners</Link>
+            <Link href="/features/cases/" className="btn btn-primary">Start Your First Plan</Link>
+            <Link href="/professional/" className="btn btn-outline">For Facilities & Planners</Link>
           </div>
         </div>
       </section>

@@ -17,7 +17,7 @@ export default function ProfessionalPage() {
       <section className="relative overflow-hidden">
         <div className="relative h-[clamp(280px,35vw,380px)]">
           <img
-            src="/images/healthcare-pro.jpg"
+            src="/images/nurse-senior.jpg"
             alt="Discharge coordinator with family"
             className="absolute inset-0 w-full h-full object-cover"
           />
@@ -35,7 +35,7 @@ export default function ProfessionalPage() {
               <p className="text-base text-white/90 max-w-xl leading-relaxed mb-6 drop-shadow-sm">
                 Stop handing families discharge instructions. Give them a digital care plan that stays current, sends reminders, and keeps your team connected — all while you stay compliant.
               </p>
-              <Link href="/features/cases" className="btn btn-primary btn-lg shadow-md">
+              <Link href="/features/cases/" className="btn btn-primary btn-lg shadow-md">
                 Create a Transition Plan
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
               </Link>
@@ -84,7 +84,7 @@ export default function ProfessionalPage() {
 
       <section className="relative overflow-hidden">
         <div className="relative h-[260px] md:h-[300px]">
-          <img src="/images/happy-family-2.jpg" alt="Family feeling relieved" className="absolute inset-0 w-full h-full object-cover" />
+          <img src="/images/seniors-family.jpg" alt="Family feeling relieved" className="absolute inset-0 w-full h-full object-cover" />
           <div className="absolute inset-0 bg-[var(--color-primary)]/22" />
           <div className="container relative h-full flex items-center justify-center">
             <div className="max-w-2xl text-center">
@@ -104,8 +104,8 @@ export default function ProfessionalPage() {
             Join facilities that are using Care Circle to improve outcomes, reduce readmissions, and raise family satisfaction.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4">
-            <Link href="/features/cases" className="btn btn-primary">Create a Transition Plan</Link>
-            <Link href="/features/audit" className="btn btn-outline">Learn About Compliance</Link>
+            <Link href="/features/cases/" className="btn btn-primary">Create a Transition Plan</Link>
+            <Link href="/features/audit/" className="btn btn-outline">Learn About Compliance</Link>
           </div>
         </div>
       </section>

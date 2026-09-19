@@ -1,10 +1,10 @@
 import Link from 'next/link';
 
 const stakeholders = [
-  { slug: 'family', title: 'Families', desc: 'Coordinate everything in the critical first 30 days after discharge.', image: '/images/hero-elderly-care.jpg', color: 'bg-[#e8f4ef] text-[#4a7c7e]' },
-  { slug: 'professional', title: 'Facilities', desc: 'Bridge the gap between your skilled care and safe outcomes at home.', image: '/images/healthcare-pro.jpg', color: 'bg-[#ede8f2] text-[#6d1247]' },
-  { slug: 'caregiver', title: 'Caregivers', desc: 'Stay connected with medications, tasks, and health updates.', image: '/images/community-volunteer.jpg', color: 'bg-[#f5ede5] text-[#c4956a]' },
-  { slug: 'patient', title: 'Your Loved One', desc: 'Feel heard, supported, and never alone during recovery.', image: '/images/hero-senior-smile.jpg', color: 'bg-[#e8eef4] text-[#4a6b8a]' },
+  { slug: 'family', title: 'Families', desc: 'Coordinate everything in the critical first 30 days after discharge.', image: '/images/senior-daughter.jpg', color: 'bg-[#e8f4ef] text-[#4a7c7e]' },
+  { slug: 'professional', title: 'Facilities', desc: 'Bridge the gap between your skilled care and safe outcomes at home.', image: '/images/nurse-senior.jpg', color: 'bg-[#ede8f2] text-[#6d1247]' },
+  { slug: 'caregiver', title: 'Caregivers', desc: 'Stay connected with medications, tasks, and health updates.', image: '/images/grandma-granddaughter.jpg', color: 'bg-[#f5ede5] text-[#c4956a]' },
+  { slug: 'patient', title: 'Your Loved One', desc: 'Feel heard, supported, and never alone during recovery.', image: '/images/elderly-home.jpg', color: 'bg-[#e8eef4] text-[#4a6b8a]' },
 ];
 
 const transitionPhases = [
@@ -20,7 +20,7 @@ export default function HomePage() {
       <section className="relative w-full overflow-hidden">
         <div className="relative h-[clamp(260px,32vw,360px)]">
           <img
-            src="/images/hero-family.jpg"
+            src="/images/seniors-family.jpg"
             alt="Family welcoming a loved one home from the hospital"
             className="absolute inset-0 w-full h-full object-cover"
           />
@@ -41,11 +41,11 @@ export default function HomePage() {
                 Care Circle helps families and facilities bridge the gap between discharge and recovery — with shared care plans, medication tracking, and coordinated daily support.
               </p>
               <div className="flex flex-wrap items-center gap-3">
-                <Link href="/features/cases" className="btn btn-primary btn-lg shadow-md">
+                <Link href="/features/cases/" className="btn btn-primary btn-lg shadow-md">
                   Start a Care Transition
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
                 </Link>
-                <Link href="/family" className="btn bg-white/90 hover:bg-white text-[var(--color-secondary)] btn-lg shadow-md backdrop-blur-sm border border-white/60">
+                <Link href="/family/" className="btn bg-white/90 hover:bg-white text-[var(--color-secondary)] btn-lg shadow-md backdrop-blur-sm border border-white/60">
                   See How Families Use It
                 </Link>
               </div>
@@ -80,7 +80,7 @@ export default function HomePage() {
               </div>
             </div>
             <div className="relative rounded-[var(--radius-lg)] overflow-hidden shadow-md">
-              <img src="/images/family-generations.jpg" alt="Family gathered together" className="w-full h-full object-cover" />
+              <img src="/images/elderly-home.jpg" alt="Senior in comfortable home surroundings" className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-[var(--color-primary)]/10" />
             </div>
           </div>
@@ -137,8 +137,8 @@ export default function HomePage() {
       <section className="relative overflow-hidden">
         <div className="relative h-[280px] md:h-[340px]">
           <img
-            src="/images/hands-support.jpg"
-            alt="Supportive hands together"
+            src="/images/family-couch.jpg"
+            alt="Family relaxing together on couch at home"
             className="absolute inset-0 w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-[var(--color-primary)]/25" />
@@ -178,12 +178,12 @@ export default function HomePage() {
                 </li>
               ))}
             </ul>
-            <Link href="/professional" className="btn btn-primary">
+            <Link href="/professional/" className="btn btn-primary">
               For Discharge Planners & Facilities →
             </Link>
           </div>
           <div className="order-1 lg:order-2 relative rounded-[var(--radius-lg)] overflow-hidden shadow-md">
-            <img src="/images/healthcare-pro.jpg" alt="Discharge coordinator" className="w-full object-cover" />
+            <img src="/images/nurse-senior.jpg" alt="Discharge coordinator" className="w-full object-cover" />
             <div className="absolute inset-0 bg-[var(--color-secondary)]/10" />
           </div>
         </div>
@@ -206,7 +206,7 @@ export default function HomePage() {
               ))}
             </div>
             <div className="mt-8 pt-6 border-t border-[var(--color-border)]">
-              <Link href="/features/audit" className="font-semibold text-[var(--color-primary)] hover:text-[var(--color-secondary)] transition-colors">
+              <Link href="/features/audit/" className="font-semibold text-[var(--color-primary)] hover:text-[var(--color-secondary)] transition-colors">
                 Learn about compliance &amp; audit →
               </Link>
             </div>
@@ -224,10 +224,10 @@ export default function HomePage() {
             Set up your first care transition plan in under two minutes. Free for families. Built for facilities.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4">
-            <Link href="/features/cases" className="btn btn-primary btn-lg">
+            <Link href="/features/cases/" className="btn btn-primary btn-lg">
               Start a Transition
             </Link>
-            <Link href="/family" className="btn btn-outline btn-lg">
+            <Link href="/family/" className="btn btn-outline btn-lg">
               Learn More for Families
             </Link>
           </div>

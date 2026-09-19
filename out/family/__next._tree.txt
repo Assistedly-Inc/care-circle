@@ -1,4 +1,4 @@
-:HL["/_next/static/chunks/2ptiho7mtpvxl.css","style"]
-:HL["/images/hero-elderly-care.jpg","image"]
-:HL["/images/family-generations.jpg","image"]
-0:{"tree":{"name":"","param":null,"prefetchHints":4176,"slots":{"children":{"name":"(persona)","param":null,"prefetchHints":4192,"slots":{"children":{"name":"family","param":null,"prefetchHints":4192,"slots":{"children":{"name":"__PAGE__","param":null,"prefetchHints":4256,"slots":null}}}}}}},"staleTime":300,"buildId":"QiTpIA6Vtv3kdAYVMcDPM"}
+:HL["/_next/static/chunks/3vmogybfi6sdx.css","style"]
+:HL["/images/senior-daughter.jpg","image"]
+:HL["/images/elderly-home.jpg","image"]
+0:{"tree":{"name":"","param":null,"prefetchHints":4176,"slots":{"children":{"name":"(persona)","param":null,"prefetchHints":4192,"slots":{"children":{"name":"family","param":null,"prefetchHints":4192,"slots":{"children":{"name":"__PAGE__","param":null,"prefetchHints":4256,"slots":null}}}}}}},"staleTime":300,"buildId":"39ZiOSfu9FcmfEGE5S-u1"}

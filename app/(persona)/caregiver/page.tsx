@@ -14,8 +14,8 @@ export default function CaregiverPage() {
       <section className="relative overflow-hidden">
         <div className="relative h-[clamp(280px,35vw,380px)]">
           <img
-            src="/images/community-volunteer.jpg"
-            alt="Caregiver supporting recovery at home"
+            src="/images/grandma-granddaughter.jpg"
+            alt="Grandmother and granddaughter together at home"
             className="absolute inset-0 w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.7)_0%,rgba(0,0,0,0.3)_50%,rgba(0,0,0,0.1)_100%)]" />
@@ -32,7 +32,7 @@ export default function CaregiverPage() {
               <p className="text-base text-white/90 max-w-xl leading-relaxed mb-6 drop-shadow-sm">
                 The family sets the care plan. You make it happen. Care Circle keeps you in sync with medications, daily tasks, and observations through the first 30 days.
               </p>
-              <Link href="/features/tasks" className="btn btn-primary btn-lg shadow-md">
+              <Link href="/features/tasks/" className="btn btn-primary btn-lg shadow-md">
                 View Your Tasks
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
               </Link>
@@ -59,7 +59,7 @@ export default function CaregiverPage() {
 
       <section className="relative overflow-hidden">
         <div className="relative h-[260px] md:h-[300px]">
-          <img src="/images/community.jpg" alt="Community support" className="absolute inset-0 w-full h-full object-cover" />
+          <img src="/images/elderly-home.jpg" alt="Senior woman comfortably at home" className="absolute inset-0 w-full h-full object-cover" />
           <div className="absolute inset-0 bg-[var(--color-primary)]/22" />
           <div className="container relative h-full flex items-center justify-center">
             <div className="max-w-2xl text-center">
@@ -85,8 +85,8 @@ export default function CaregiverPage() {
             No more confusion about what the doctor said yesterday. No more missed medications. Just a clear plan, shared with everyone who matters, so the person in your care gets the best support possible.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4">
-            <Link href="/features/tasks" className="btn btn-primary">Start Your Task List</Link>
-            <Link href="/features/notifications" className="btn btn-outline">Set Up Reminders</Link>
+            <Link href="/features/tasks/" className="btn btn-primary">Start Your Task List</Link>
+            <Link href="/features/notifications/" className="btn btn-outline">Set Up Reminders</Link>
           </div>
         </div>
       </section>

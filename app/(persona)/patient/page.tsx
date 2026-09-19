@@ -13,8 +13,8 @@ export default function PatientPage() {
       <section className="relative overflow-hidden">
         <div className="relative h-[clamp(280px,35vw,380px)]">
           <img
-            src="/images/hero-senior-smile.jpg"
-            alt="Warm senior recovering well at home"
+            src="/images/elderly-home.jpg"
+            alt="Senior woman at home with family support"
             className="absolute inset-0 w-full h-full object-cover object-top"
           />
           <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.7)_0%,rgba(0,0,0,0.3)_50%,rgba(0,0,0,0.1)_100%)]" />
@@ -31,7 +31,7 @@ export default function PatientPage() {
               <p className="text-base text-white/90 max-w-xl leading-relaxed mb-6 drop-shadow-sm">
                 After the hospital or rehab, coming home should feel like a relief — not a puzzle. Your family, caregivers, and care team are all connected in one place. And you are at the center of it.
               </p>
-              <Link href="/features/health" className="btn btn-primary btn-lg shadow-md">
+              <Link href="/features/health/" className="btn btn-primary btn-lg shadow-md">
                 View My Care Plan
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
               </Link>
@@ -58,7 +58,7 @@ export default function PatientPage() {
 
       <section className="relative overflow-hidden">
         <div className="relative h-[260px] md:h-[300px]">
-          <img src="/images/mature-woman-home.jpg" alt="Confident senior at home" className="absolute inset-0 w-full h-full object-cover object-top" />
+          <img src="/images/senior-daughter.jpg" alt="Confident senior at home" className="absolute inset-0 w-full h-full object-cover object-top" />
           <div className="absolute inset-0 bg-[var(--color-primary)]/18" />
           <div className="absolute inset-0 bg-[var(--color-secondary)]/10" />
           <div className="container relative h-full flex items-center justify-center">
@@ -85,8 +85,8 @@ export default function PatientPage() {
             See everything your providers and family see. Track your medications. Understand your care plan. And if you ever want your full record — it is yours, always.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4">
-            <Link href="/features/health" className="btn btn-primary">View My Care Plan</Link>
-            <Link href="/features/export" className="btn btn-outline">Download My Record</Link>
+            <Link href="/features/health/" className="btn btn-primary">View My Care Plan</Link>
+            <Link href="/features/export/" className="btn btn-outline">Download My Record</Link>
           </div>
         </div>
       </section>

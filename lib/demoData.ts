@@ -24,7 +24,7 @@ export interface DemoProfile {
     id: string;
     title: string;
     owner: string;
-    dueDate: string;
+    dueDate?: string;
     status: 'todo' | 'in_progress' | 'blocked' | 'done' | 'cancelled';
     description: string;
     escalated: boolean;

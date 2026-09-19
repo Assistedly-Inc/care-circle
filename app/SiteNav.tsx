@@ -19,7 +19,6 @@ const featureLinks = [
   { href: '/features/notifications/', label: 'Reminders' },
   { href: '/features/export/', label: 'Export' },
   { href: '/features/audit/', label: 'Compliance' },
-  { href: '/features/auth/', label: 'Access' },
 ];
 
 function isActive(href: string, pathname: string): boolean {

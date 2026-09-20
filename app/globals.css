@@ -1,6 +1,56 @@
+
+/* ─── Hero Pastel Blobs ─── */
+.hero-pastels {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.pastel-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.5;
+  animation: blobFloat 8s ease-in-out infinite;
+}
+
+.blob-1 { width: 400px; height: 400px; background: var(--pacific-blue); top: -100px; right: -100px; animation-delay: 0s; }
+.blob-2 { width: 300px; height: 300px; background: var(--warm-cream); bottom: -50px; left: -50px; animation-delay: -2s; }
+.blob-3 { width: 250px; height: 250px; background: var(--soft-sage); top: 40%; right: 20%; animation-delay: -4s; }
+.blob-4 { width: 200px; height: 200px; background: var(--warm-orange); top: 20%; left: 30%; animation-delay: -6s; }
+.blob-5 { width: 250px; height: 250px; background: var(--soft-peach); bottom: 10%; right: 25%; animation-delay: -3s; }
+
+@keyframes blobFloat {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(30px, -30px) scale(1.1); }
+  66% { transform: translate(-20px, 20px) scale(0.95); }
+}
+
+/* Fixed: White text for buttons with gray backgrounds */
+.btn-white {
+  background: var(--color-surface);
+  color: white;
+}
+.btn-white:hover {
+  background: var(--color-primary);
+}
+
 @import "tailwindcss";
 
 @theme {
+
+  /* ─── Care Circle hero palette ─── */
+  --hero-bg: #FDF9F3;
+  --hero-text: #2D2926;
+  --pacific-blue: #A8D8EA;
+  --warm-cream: #F4E4BC;
+  --soft-sage: #C8E0CC;
+  --warm-orange: #F5D5A0;
+  --soft-peach: #FFE5D6;
   /* ─── Assistedly.ai brand palette ─── */
   --color-primary: #4a7c7e;
   --color-secondary: #6d1247;
@@ -72,7 +122,9 @@ a:hover {
 .btn:hover { transform: translateY(-2px); }
 .btn:active { transform: translateY(0); }
 
-.btn-primary {
+.btn-primary  {
+    color: white;
+
   background: var(--color-accent);
   color: var(--color-surface);
 }
@@ -80,7 +132,9 @@ a:hover {
   filter: brightness(1.06);
   box-shadow: var(--shadow-md);
 }
-.btn-secondary {
+.btn-secondary  {
+    color: white;
+
   background: var(--color-secondary);
   color: var(--color-surface);
 }
@@ -88,7 +142,9 @@ a:hover {
   filter: brightness(1.1);
   box-shadow: var(--shadow-md);
 }
-.btn-outline {
+.btn-outline  {
+    color: white; /* Fix gray text */
+
   background: transparent;
   color: var(--color-primary);
   border: 2px solid var(--color-primary);

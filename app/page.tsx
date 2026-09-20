@@ -16,37 +16,38 @@ const transitionPhases = [
 export default function HomePage() {
   return (
     <div className="pb-16">
-      {/* ── Hero: Discharge is the beginning ── */}
+      {/* ─── Hero: Discharge is the beginning ─── */}
       <section className="relative w-full overflow-hidden">
-        <div className="relative h-[clamp(260px,32vw,360px)]">
-          <img
-            src="/images/senior-walker.jpg"
-            alt="Senior navigating their home independently"
-            className="absolute inset-0 w-full h-full object-cover"
-          />
+        <div className="relative h-[clamp(260px,32vw,360px)] bg-[#FDF9F3]">
+          {/* Pastel blobs */}
+          <div className="hero-pastels">
+            <div className="pastel-blob blob-1" aria-hidden="true"></div>
+            <div className="pastel-blob blob-2" aria-hidden="true"></div>
+            <div className="pastel-blob blob-3" aria-hidden="true"></div>
+            <div className="pastel-blob blob-4" aria-hidden="true"></div>
+            <div className="pastel-blob blob-5" aria-hidden="true"></div>
+          </div>
+          
           <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.72)_0%,rgba(0,0,0,0.35)_50%,rgba(0,0,0,0.12)_100%)]" />
-
+          
           <div className="container relative h-full flex flex-col items-start justify-end pb-10 md:pb-14">
             <div className="max-w-2xl">
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/15 backdrop-blur-sm rounded-full border border-white/30 mb-3">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#A8D8EA]/80 backdrop-blur-sm rounded-full border border-white/30 mb-3">
                 <svg className="w-4 h-4 text-white/90" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
                 </svg>
                 <span className="text-xs font-bold uppercase tracking-[0.1em] text-white/90">Care Circle</span>
               </div>
-              <h1 className="text-[clamp(1.6rem,3.5vw,2.4rem)] font-extrabold text-white mb-2 tracking-tight leading-tight drop-shadow-sm">
+              <h1 className="text-[clamp(1.6rem,3.5vw,2.4rem)] font-extrabold text-[#2D2926] mb-2 tracking-tight leading-tight drop-shadow-sm">
                 The first 30 days home are the most important
               </h1>
-              <p className="text-base text-white/90 max-w-xl mb-5 leading-relaxed drop-shadow-sm">
+              <p className="text-base text-[#2D2926]/90 max-w-xl mb-5 leading-relaxed drop-shadow-sm">
                 Care Circle helps families and facilities bridge the gap between discharge and recovery — with shared care plans, medication tracking, and coordinated daily support.
               </p>
               <div className="flex flex-wrap items-center gap-3">
                 <Link href="/features/cases/" className="btn btn-primary btn-lg shadow-md">
                   Start a Care Transition
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
-                </Link>
-                <Link href="/family/" className="btn bg-white/90 hover:bg-white text-[var(--color-secondary)] btn-lg shadow-md backdrop-blur-sm border border-white/60">
-                  See How Families Use It
                 </Link>
               </div>
             </div>
@@ -224,9 +225,7 @@ export default function HomePage() {
             <Link href="/features/cases/" className="btn btn-primary btn-lg">
               Start a Transition
             </Link>
-            <Link href="/family/" className="btn btn-outline btn-lg">
-              Learn More for Families
-            </Link>
+
           </div>
         </div>
       </section>

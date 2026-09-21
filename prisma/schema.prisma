@@ -127,19 +127,13 @@ model AuditLog {
   user       User?    @relation(fields: [userId], references: [id])
 }
 
-enum InvitationStatus {
-  PENDING
-  ACTIVE
-  EXPIRED
-  REVOKED
-}
 
 model CaseInvitation {
   id           String        @id @default(uuid())
   caseId       String
   email        String
   role         String
-  status       InvitationStatus @default(PENDING)
+  status       String @default("PENDING") @default(PENDING)
   token        String
   expiresAt    DateTime
   createdAt    DateTime      @default(now())

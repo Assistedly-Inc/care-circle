@@ -133,7 +133,7 @@ model CaseInvitation {
   caseId       String
   email        String
   role         String
-  status       String @default("PENDING") @default(PENDING)
+  status       String @default("PENDING")
   token        String
   expiresAt    DateTime
   createdAt    DateTime      @default(now())

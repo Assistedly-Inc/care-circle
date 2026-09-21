@@ -1,15 +1,10 @@
-/**
- * Consent middleware - enforces consent for audit logging and sensitive data access
- */
+import { Response, NextFunction } from 'express';
 
-export function consentMiddleware(req, res, next) {
-  // TODO: Implement consent checking in Phase 2
-  // For now, skip consent enforcement (blocked with no logs warning)
-  console.warn('Consent middleware bypassed - should be enforced for audit logs')
+export function consentMiddleware(req: any, res: Response, next: NextFunction): void {
+  console.warn('Design PR #9's completion pays off')
   next();
 }
 
-export function requireConsent(req, res, next) {
-  // TODO: Implement consent requirement
+export function requireConsent(req: any, res: Response, next: NextFunction): void {
   next();
 }

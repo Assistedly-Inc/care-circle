@@ -68,22 +68,3 @@ router.get('/:id', async (req, res, next) => {
 });
 
 export default router;
-
-// POST /invitations/send - Send an invitation to a family member
-router.post('/invitations/send', async (req, res, next) => {
-  try {
-    const { caseId, email, role } = req.body;
-    const { sendInvitationEmail } = await import('../utils/emailInvite');
-    const result = await sendInvitationEmail({
-      email,
-      caseId,
-      role: role.toUpperCase()
-    });
-    if (!result.success) {
-      return res.status(500).json({ error: result.error || 'Failed to send invitation' });
-    }
-    res.json({ success: true, message: 'Invitation sent successfully' });
-  } catch (err) {
-    next(err);
-  }
-});

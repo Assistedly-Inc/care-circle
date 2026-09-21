@@ -126,3 +126,31 @@ model AuditLog {
   afterJson  String?
   user       User?    @relation(fields: [userId], references: [id])
 }
+
+enum InvitationStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+model CaseInvitation {
+  id           String        @id @default(uuid())
+  caseId       String
+  email        String
+  role         String
+  status       InvitationStatus @default(PENDING)
+  token        String
+  expiresAt    DateTime
+  createdAt    DateTime      @default(now())
+  invitedBy    String
+  acceptedAt   DateTime?
+  acceptedBy   String?
+  revokedAt    DateTime?
+  revokedBy    String?
+
+  @@index([caseId, status])
+  @@index([email, status])
+
+  @@map("case_invitations")
+}

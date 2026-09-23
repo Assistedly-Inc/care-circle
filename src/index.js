@@ -301,26 +301,102 @@ function html() { return `<!doctype html>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Care Circle MVP Tester</title>
+  <title>Care Circle | Coordinated Hospital-to-Home Care Plans</title>
+  <meta name="description" content="Care Circle helps families, caregivers, and discharge planners coordinate the first 30 days after a hospital stay with shared care plans, medication tracking, and clear next steps." />
   <style>
-    *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;background:#0f172a;color:#e2e8f0} header{padding:18px 24px;background:#111827;border-bottom:1px solid #334155;display:flex;justify-content:space-between;gap:16px;align-items:center;position:sticky;top:0;z-index:2} h1{font-size:20px;margin:0;color:#38bdf8} .pill{font-size:12px;color:#34d399;border:1px solid #166534;border-radius:999px;padding:4px 9px;background:#052e1a}.wrap{display:grid;grid-template-columns:330px 1fr;gap:18px;padding:18px;max-width:1400px;margin:0 auto}.card{background:#1e293b;border:1px solid #334155;border-radius:14px;padding:16px;margin-bottom:16px;box-shadow:0 10px 30px #02061733}.card h2{font-size:16px;margin:0 0 12px;color:#f8fafc}.card h3{font-size:13px;color:#7dd3fc;text-transform:uppercase;letter-spacing:.05em;margin:18px 0 8px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}label{display:block;font-size:12px;color:#94a3b8;margin:0 0 4px}input,textarea,select{width:100%;border:1px solid #475569;border-radius:10px;background:#0f172a;color:#e2e8f0;padding:9px 10px;font:inherit;font-size:14px}textarea{min-height:82px;resize:vertical}.btn{border:0;border-radius:10px;background:#0ea5e9;color:white;font-weight:700;padding:9px 12px;cursor:pointer}.btn:hover{background:#0284c7}.btn.secondary{background:#334155}.btn.danger{background:#dc2626}.btn.small{font-size:12px;padding:6px 9px}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.list{display:flex;flex-direction:column;gap:8px}.item{padding:10px;border-radius:10px;background:#0f172a;border:1px solid #334155;cursor:pointer}.item:hover,.item.active{border-color:#38bdf8}.muted{color:#94a3b8;font-size:13px}.tiny{font-size:12px;color:#64748b}.split{display:flex;justify-content:space-between;gap:10px}.table{width:100%;border-collapse:collapse}.table th,.table td{border-bottom:1px solid #334155;padding:8px;text-align:left;font-size:13px}.output{white-space:pre-wrap;background:#020617;border:1px solid #334155;border-radius:12px;padding:12px;max-height:320px;overflow:auto;font-size:12px}.toast{position:fixed;right:18px;bottom:18px;padding:12px 14px;border-radius:10px;background:#064e3b;color:#bbf7d0;display:none;z-index:5}.toast.err{background:#7f1d1d;color:#fecaca}@media(max-width:900px){.wrap{grid-template-columns:1fr}.grid,.grid3{grid-template-columns:1fr}}
+    :root{--bg:#0b1120;--panel:#111827;--card:#1e293b;--text:#f8fafc;--muted:#94a3b8;--accent:#38bdf8;--accent-2:#34d399;--accent-3:#0ea5e9;--danger:#dc2626;--border:#334155;--radius:14px}
+    *{box-sizing:border-box} html{scroll-behavior:smooth}
+    body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--text);line-height:1.5}
+    header{padding:20px 24px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:16px;align-items:center;position:sticky;top:0;z-index:3}
+    .brand{display:flex;align-items:center;gap:12px}
+    .logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:grid;place-items:center;font-weight:800;color:#062c26}
+    h1{font-size:20px;margin:0;color:var(--text)}
+    .tagline{font-size:12px;color:var(--muted);margin-top:2px}
+    .pill{font-size:12px;color:var(--accent-2);border:1px solid #166534;border-radius:999px;padding:4px 10px;background:#052e1a}
+    .wrap{display:grid;grid-template-columns:330px 1fr;gap:20px;padding:20px;max-width:1440px;margin:0 auto}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:18px;box-shadow:0 12px 34px #02061755}
+    .card h2{font-size:17px;margin:0 0 14px;color:var(--text)}
+    .card h3{font-size:12px;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin:20px 0 10px}
+    .hero{background:linear-gradient(135deg,#0f3d3e 0%,#111827 100%);border:1px solid #1f5f56}
+    .hero p{color:var(--muted);margin:0}
+    .hero .stat{display:flex;align-items:baseline;gap:8px;margin:10px 0}
+    .hero .stat strong{font-size:28px;color:var(--accent-2)}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+    label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px}
+    input,textarea,select{width:100%;border:1px solid #475569;border-radius:10px;background:#0f172a;color:var(--text);padding:10px 12px;font:inherit;font-size:14px;outline:none}
+    input:focus,textarea:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(56,189,248,.15)}
+    textarea{min-height:82px;resize:vertical}
+    .btn{border:0;border-radius:10px;background:var(--accent-3);color:#fff;font-weight:700;padding:10px 14px;cursor:pointer;transition:transform .05s,background .15s}
+    .btn:hover{background:#0284c7}.btn:active{transform:translateY(1px)}
+    .btn.secondary{background:#334155}.btn.secondary:hover{background:#475569}
+    .btn.danger{background:var(--danger)}.btn.danger:hover{background:#b91c1c}
+    .btn.small{font-size:12px;padding:6px 10px}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .list{display:flex;flex-direction:column;gap:8px}
+    .item{padding:12px;border-radius:10px;background:#0f172a;border:1px solid var(--border);cursor:pointer;transition:border-color .15s,background .15s}
+    .item:hover,.item.active{border-color:var(--accent);background:#0b1a2e}
+    .muted{color:var(--muted);font-size:13px}
+    .tiny{font-size:12px;color:#64748b}
+    .split{display:flex;justify-content:space-between;gap:10px;align-items:center}
+    .table{width:100%;border-collapse:collapse}.table th,.table td{border-bottom:1px solid var(--border);padding:10px;text-align:left;font-size:13px}
+    .table th{color:var(--accent);font-weight:600}
+    .output{white-space:pre-wrap;background:#020617;border:1px solid var(--border);border-radius:12px;padding:12px;max-height:320px;overflow:auto;font-size:12px}
+    .toast{position:fixed;right:18px;bottom:18px;padding:12px 16px;border-radius:10px;background:#064e3b;color:#bbf7d0;display:none;z-index:5;box-shadow:0 8px 24px rgba(0,0,0,.3)}
+    .toast.err{background:#7f1d1d;color:#fecaca}
+    .badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:3px 8px;border-radius:999px;background:#1e293b;border:1px solid var(--border);color:var(--muted)}
+    .badge.green{color:#34d399;background:#052e1a;border-color:#166534}
+    .kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px}
+    .kpi{background:#0f172a;border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center}
+    .kpi strong{display:block;font-size:22px;color:var(--accent-2)}
+    .kpi span{font-size:11px;color:var(--muted)}
+    @media(max-width:900px){.wrap{grid-template-columns:1fr}.grid,.grid3,.kpi-grid{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
-<header><div><h1>Care Circle MVP Frontend Tester</h1><div class="tiny">Tests Feature #2 shared care profile on Cloudflare KV Worker</div></div><div class="row"><span id="health" class="pill">checking...</span><button class="btn secondary small" onclick="loadProfiles()">Refresh</button></div></header>
+<header>
+  <div class="brand">
+    <div class="logo">CC</div>
+    <div>
+      <h1>Care Circle</h1>
+      <div class="tagline">Coordinated hospital-to-home care plans for the first 30 days</div>
+    </div>
+  </div>
+  <div class="row">
+    <span class="badge green">HIPAA-aware</span>
+    <span id="health" class="pill">checking...</span>
+    <button class="btn secondary small" onclick="loadProfiles()">Refresh</button>
+  </div>
+</header>
 <div class="wrap">
   <aside>
+    <div class="card hero">
+      <h2>Prevent readmissions together</h2>
+      <p>1 in 5 older adults returns to the hospital within 30 days. Shared care plans, medication tracking, and clear daily tasks keep everyone aligned.</p>
+      <div class="kpi-grid">
+        <div class="kpi"><strong>80%</strong><span>of complications are preventable</span></div>
+        <div class="kpi"><strong>40%</strong><span>have medication errors early on</span></div>
+        <div class="kpi"><strong>75%</strong><span>families want clearer guidance</span></div>
+      </div>
+    </div>
     <div class="card"><h2>Create Care Profile</h2>
       <label>Display name</label><input id="newName" placeholder="Jane Doe">
-      <div class="grid" style="margin-top:8px"><div><label>DOB</label><input id="newDob" type="date"></div><div><label>Diagnosis</label><input id="newDx" placeholder="CHF follow-up"></div></div>
-      <label style="margin-top:8px">Initial discharge summary</label><textarea id="newDischarge" placeholder="Monitor vitals daily..."></textarea>
-      <button class="btn" style="margin-top:10px;width:100%" onclick="createProfile()">Create Profile</button>
+      <div class="grid" style="margin-top:10px"><div><label>Date of birth</label><input id="newDob" type="date"></div><div><label>Primary diagnosis</label><input id="newDx" placeholder="CHF follow-up"></div></div>
+      <label style="margin-top:10px">Initial discharge summary</label><textarea id="newDischarge" placeholder="Monitor vitals daily, watch for weight gain, follow-up in 7 days..."></textarea>
+      <button class="btn" style="margin-top:12px;width:100%" onclick="createProfile()">Create Profile</button>
     </div>
-    <div class="card"><h2>Profiles</h2><div id="profiles" class="list"><div class="muted">Loading...</div></div></div>
+    <div class="card"><h2>Care Profiles</h2><div id="profiles" class="list"><div class="muted">Loading...</div></div></div>
   </aside>
 
   <main>
-    <div id="empty" class="card"><h2>Select or create a profile</h2><p class="muted">Use the left panel to create a patient profile, then test contacts, meds, discharge instructions, audit log, and raw API output here.</p></div>
+    <div id="empty" class="card">
+      <div class="split"><h2>Welcome to Care Circle</h2><span class="badge">MVP tester</span></div>
+      <p class="muted">Care Circle is a shared care-transition platform built around the people recovering at home. Create a profile on the left to test contacts, medications, tasks, discharge instructions, audit log, and raw API responses.</p>
+      <div class="kpi-grid" style="max-width:600px">
+        <div class="kpi"><strong>1</strong><span>Create a patient profile</span></div>
+        <div class="kpi"><strong>2</strong><span>Add contacts, meds & tasks</span></div>
+        <div class="kpi"><strong>3</strong><span>Coordinate the 30-day window</span></div>
+      </div>
+    </div>
     <div id="editor" style="display:none">
       <div class="card"><div class="split"><h2 id="title">Care Profile</h2><button class="btn secondary small" onclick="loadSelected()">Reload selected</button></div>
         <h3>Patient basic data</h3>

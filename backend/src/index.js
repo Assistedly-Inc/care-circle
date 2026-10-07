@@ -134,6 +134,7 @@ function normalizeCareProfile(input = {}, existing = {}) {
     consent: input.consent ?? existing.consent ?? { given: false, scope: '', givenBy: '', givenAt: null },
     tasks: Array.isArray(input.tasks) ? input.tasks : (existing.tasks || []),
     barriers: Array.isArray(input.barriers) ? input.barriers : (existing.barriers || []),
+    admissionDate: input.admissionDate ?? existing.admissionDate ?? null,
     status: input.status ?? existing.status ?? 'active',
     createdAt: existing.createdAt || input.createdAt || now(),
     updatedAt: now()
@@ -401,7 +402,7 @@ async function handleApi(request, env, url) {
     }
     if (action === 'comments' && method === 'POST') {
       const body = await request.json().catch(() => ({}));
-      const comment = { id: uid(), text: body.text || '', author: body.author || 'frontend-tester', createdAt: now() };
+      const comment = { id: uid(), text: body.text || '', author: taskUser.name || taskUser.email || 'frontend-tester', createdAt: now() };
       if (!comment.text) return badRequest('Comment text is required');
       doc.tasks[idx].comments = doc.tasks[idx].comments || [];
       doc.tasks[idx].comments.push(comment);
@@ -502,7 +503,7 @@ async function handleApi(request, env, url) {
     }
     if (action === 'comments' && method === 'POST') {
       const body = await request.json().catch(() => ({}));
-      const comment = { id: uid(), text: body.text || '', author: body.author || 'mvp-user', createdAt: now() };
+      const comment = { id: uid(), text: body.text || '', author: bUser.name || bUser.email || 'mvp-user', createdAt: now() };
       if (!comment.text) return badRequest('Comment text is required');
       doc.barriers[idx].comments = doc.barriers[idx].comments || [];
       doc.barriers[idx].comments.push(comment);

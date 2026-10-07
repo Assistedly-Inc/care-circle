@@ -219,3 +219,19 @@ label {
 @media (max-width: 768px) {
   .container { padding: 0 1rem; }
 }
+
+/* Form field styling (shared) */
+.field {
+  width: 100%;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  background: #fff;
+  color: var(--color-text);
+  font-size: 0.9375rem;
+}
+.field:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
+}

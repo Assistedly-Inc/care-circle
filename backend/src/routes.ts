@@ -3,6 +3,7 @@ import authRouter from './api/auth';
 import caseRouter from './api/cases';
 import medicationRouter from './api/medications';
 import taskRouter from './api/tasks';
+import barrierRouter from './api/barriers';
 import exportRouter from './api/export';
 import healthRouter from './api/health';
 // Swagger UI disabled for MVP preview
@@ -15,6 +16,7 @@ router.use('/auth', authRouter);
 router.use('/cases', caseRouter);
 router.use('/medications', medicationRouter);
 router.use('/tasks', taskRouter);
+router.use('/barriers', barrierRouter);
 router.use('/export', exportRouter);
 router.use('/health', healthRouter);
 // router.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));

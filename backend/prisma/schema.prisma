@@ -1,0 +1,150 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url = "file:./dev.db"
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  coordinatorCases Case[]       @relation("CoordinatorCases")
+  caseMemberships  CaseMember[]
+  devices          UserDevice[]
+  comments         Comment[]
+  Task             Task[]
+  AuditLog         AuditLog[]
+}
+
+// enum MemberRole {
+//   COORDINATOR
+//   CAREGIVER
+//   FAMILY
+// }
+
+model Case {
+  id               String       @id @default(uuid())
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  patientName      String
+  patientDob       DateTime
+  emergencyContact String
+  dischargeNotes   String?
+  coordinatorId    String
+  coordinator      User         @relation("CoordinatorCases", fields: [coordinatorId], references: [id])
+  members          CaseMember[]
+  medications      Medication[]
+  tasks            Task[]
+  consentGiven     Boolean      @default(false)
+
+  @@index([coordinatorId])
+}
+
+model CaseMember {
+  id     String     @id @default(uuid())
+  caseId String
+  userId String
+  role   String
+  case   Case       @relation(fields: [caseId], references: [id])
+  user   User       @relation(fields: [userId], references: [id])
+
+  @@unique([caseId, userId])
+}
+
+model Medication {
+  id         String    @id @default(uuid())
+  caseId     String
+  name       String
+  dosage     String
+  schedule   String
+  source     String?
+  verifiedAt DateTime?
+  notes      String?
+  case       Case      @relation(fields: [caseId], references: [id])
+
+  @@index([caseId])
+}
+
+// enum TaskStatus {
+//   PENDING
+//   IN_PROGRESS
+//   COMPLETED
+//   BLOCKED
+// }
+
+model Task {
+  id              String     @id @default(uuid())
+  caseId          String
+  title           String
+  description     String?
+  ownerId         String?
+  dueDate         DateTime
+  status          String @default("PENDING")
+  escalationLevel Int        @default(0)
+  comments        Comment[]
+  case            Case       @relation(fields: [caseId], references: [id])
+  owner           User?      @relation(fields: [ownerId], references: [id])
+
+  @@index([caseId, status])
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  taskId    String
+  authorId  String
+  content   String
+  createdAt DateTime @default(now())
+  task      Task     @relation(fields: [taskId], references: [id])
+  author    User     @relation(fields: [authorId], references: [id])
+}
+
+model UserDevice {
+  id        String   @id @default(uuid())
+  userId    String
+  endpoint  String
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  timestamp  DateTime @default(now())
+  userId     String?
+  action     String
+  entity     String
+  entityId   String?
+  beforeJson String?
+  afterJson  String?
+  user       User?    @relation(fields: [userId], references: [id])
+}
+
+
+model CaseInvitation {
+  id           String        @id @default(uuid())
+  caseId       String
+  email        String
+  role         String
+  status       String @default("PENDING")
+  token        String
+  expiresAt    DateTime
+  createdAt    DateTime      @default(now())
+  invitedBy    String
+  acceptedAt   DateTime?
+  acceptedBy   String?
+  revokedAt    DateTime?
+  revokedBy    String?
+
+  @@index([caseId, status])
+  @@index([email, status])
+
+  @@map("case_invitations")
+}

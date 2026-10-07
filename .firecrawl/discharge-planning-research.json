@@ -1,0 +1,280 @@
+{
+  "executive_summary": "The category is not one homogeneous market: discharge planning is a workflow within the broader patient-flow/capacity market. Incumbents divide into (1) EHR-native flow (Epic, Oracle), (2) operational optimization (LeanTaaS, Qventus, TeleTracking), and (3) post-acute transition networks (CarePort/WellSky, PointClickCare). Public pricing is almost universally quote-based or undisclosed, and product-level revenue/headcount is generally unavailable. The most credible opportunity for an unfunded entrant is not another hospital-wide command center: it is a narrow, interoperable, low-risk workflow that closes a measurable gap between discharge readiness and execution (for example, a lightweight, human-in-the-loop barrier-resolution and post-acute follow-up layer that can run from exports/FHIR and does not make autonomous clinical decisions). A moat could come from longitudinal, outcome-linked barrier-resolution data, workflow integrations, and network effects with community providers—not from an unvalidated prediction model alone. Compliance is not minimal if the product handles PHI or materially influences care; minimizing regulatory burden means avoiding autonomous diagnosis/treatment, minimizing data retention, using customer-controlled deployment, and obtaining legal/security review. The market is attractive but crowded: estimates for the broad patient-flow market range from about $1.89B-$2.04B in 2025 with roughly 20.6%-21.1% CAGR, while narrower or AI-only definitions produce different totals. These are analyst estimates, not audited totals.",
+  "products": [
+    {
+      "name": "Signal 1 – Discharge Predictor / Flow Solution",
+      "website": "https://signal1.ai",
+      "discharge_planning_functionality": "Uses common EMR data and machine learning to identify patients nearing the end of an acute stay, predict discharge order/discharge within roughly three days, surface discharge barriers, and deliver a Discharge Priority Report to multidisciplinary teams.",
+      "pricing_model": "No public list price found; likely enterprise quote-based, but the pricing model is not verified.",
+      "estimated_price": "Unavailable; do not infer a price from public materials.",
+      "target_customer": "Hospitals and health systems; publicly documented collaborations include Unity Health/St. Michael’s, Trillium Health Partners’ Medicine Program, and Grand River Hospital. Department users include medicine, care teams, flow/operations, and discharge-planning staff.",
+      "key_features": [
+        "Discharge-readiness prediction",
+        "Barrier identification",
+        "EMR/Epic integration",
+        "Multidisciplinary priority reporting",
+        "Broader enterprise AI platform and AI-management capabilities"
+      ],
+      "market_position": "Early-stage specialist with publicly documented Canadian hospital collaborations and a 2026 NewYork-Presbyterian AI-management adoption; scale claims are much less transparent than larger vendors.",
+      "estimated_revenue": "Unavailable from reliable public sources.",
+      "estimated_headcount": "Unavailable from reliable public sources.",
+      "gaps_or_weaknesses": [
+        "Public evidence emphasizes prediction and prioritization more than closed-loop task execution, bed operations, or post-acute referral network functionality; this is an inference from published scope.",
+        "Limited publicly disclosed pricing, scale, independent validation, revenue, and headcount.",
+        "Requires EHR integration and hospital change management."
+      ],
+      "sources": [
+        "https://signal1.ai/wp-content/uploads/2025/01/Signal1-Whitepaper-DischargeProcess-2.pdf",
+        "https://signal1.ai/resources/ai-technology-to-help-clinicians-predict-changes-in-patient-needs-and-better-customize-their-care/",
+        "https://www.nyp.org/news/nyp-adopts-signal-1s-ai-management-system-to-advance-healthcare-innovation-and-enhance-patient-safety"
+      ]
+    },
+    {
+      "name": "LeanTaaS iQueue for Inpatient Flow",
+      "website": "https://leantaas.com",
+      "discharge_planning_functionality": "Connects capacity, admissions, care progression, staffing, and discharge; forecasts constraints, gives ED/PACU/transfer-center/bed-management teams shared placement visibility, surfaces clinical/social/logistical barriers, and supports multidisciplinary rounds and discharge-lounge workflows.",
+      "pricing_model": "Enterprise SaaS/managed deployment; public pages direct prospects to demo/contact sales and do not publish a standard price.",
+      "estimated_price": "Unavailable; no defensible public estimate.",
+      "target_customer": "Large hospitals and health systems, academic medical centers, IDNs, cancer centers, nursing/flow leadership, bed management, transfer centers, ED, and operations command centers. LeanTaaS reported 185 health systems and 1,000+ hospitals/centers in 2023.",
+      "key_features": [
+        "Demand and capacity forecasting",
+        "Bed huddles and escalation/action tracking",
+        "Admission and placement prioritization",
+        "Likely discharge and EDD signals",
+        "Barrier management",
+        "Staffing/workload forecasts",
+        "Automated EHR/operational data feeds"
+      ],
+      "market_position": "Scaled specialist and category leader claim: company-reported 1,000+ hospitals/centers, 185 health systems, $1B valuation in 2023, and KLAS recognition; claims are not independent market-share data.",
+      "estimated_revenue": "Absolute revenue unavailable; company reported 170% revenue growth over three years as of December 2023, but not revenue dollars.",
+      "estimated_headcount": "Unavailable from reliable public sources.",
+      "gaps_or_weaknesses": [
+        "High enterprise-sales, integration, implementation, and change-management burden.",
+        "No public list price; likely expensive for small hospitals.",
+        "Broad platform scope may be overkill for a single discharge bottleneck; post-acute network depth is less prominent publicly than CarePort/PointClickCare."
+      ],
+      "sources": [
+        "https://leantaas.com/products/inpatient-flow/",
+        "https://leantaas.com/press-releases/leantaas-announces-landmark-achievement-now-serves-over-1000-hospitals-and-centers-across-the-u-s-as-demand-for-ai-powered-hospital-operations-management-solutions-increases/",
+        "https://klasresearch.com/report/leantaas-iqueue-for-inpatient-flow-2024-optimizing-capacity-patient-flow-and-staffing/3542"
+      ]
+    },
+    {
+      "name": "Qventus Inpatient Capacity Solution",
+      "website": "https://qventus.com",
+      "discharge_planning_functionality": "AI-enabled, EHR-embedded discharge planning that generates early plans, predicts and automates planning, surfaces barriers/care-plan gaps, prioritizes flow in EHR worklists, detects missing orders, and manages milestones.",
+      "pricing_model": "Enterprise quote-based; no public standard price disclosed.",
+      "estimated_price": "Unavailable; no reliable public estimate.",
+      "target_customer": "U.S. health systems and hospitals, especially inpatient capacity/throughput, case management, nursing, and operations teams; named examples include OhioHealth and HonorHealth.",
+      "key_features": [
+        "Early discharge-planning intelligence",
+        "Disposition support",
+        "Provider-note/customer-data models",
+        "EHR worklist prioritization",
+        "Automated workflows and missing-order detection",
+        "OR/surgical-growth adjacency"
+      ],
+      "market_position": "Well-funded AI hospital-operations specialist; announced a $105M Series D led by KKR in 2025. It competes strongly in AI-enabled inpatient flow and OR optimization, but funding is not revenue.",
+      "estimated_revenue": "Unavailable from company or audited public filings; third-party figures are not treated as verified.",
+      "estimated_headcount": "Unavailable from reliable company sources.",
+      "gaps_or_weaknesses": [
+        "Public inpatient materials emphasize prediction, prioritization, and automation inside the hospital; post-acute network/referral depth is less explicit than CarePort/PointClickCare.",
+        "Enterprise integration and workflow adoption remain substantial barriers.",
+        "No public price or product-level financial disclosure."
+      ],
+      "sources": [
+        "https://www.qventus.com/solutions/discharge-planning/",
+        "https://www.qventus.com/company/newsroom/qventus-launches-its-3rd-generation-inpatient-solution-to-optimize-hospital-discharge-planning-and-automate-care-planning-fully-embedded-into-ehr-workflows/",
+        "https://www.qventus.com/company/newsroom/qventus-announces-105-million-investment-series-d-led-by-kkr/"
+      ]
+    },
+    {
+      "name": "CarePort / WellSky Care Transitions",
+      "website": "https://careporthealth.com",
+      "discharge_planning_functionality": "Coordinates discharge and post-acute transitions with patient choice, electronic referrals, payer authorization, community referrals, post-acute utilization/encounter history, quality scores, provider profiles, readmission risk, and SNF-versus-home-health decision support.",
+      "pricing_model": "Enterprise quote-based; contact/demo model with no public list price.",
+      "estimated_price": "Unavailable; no reliable public estimate.",
+      "target_customer": "Hospitals/health systems, discharge planners, case managers, care coordinators, payers, ACOs, post-acute providers, and community organizations. CarePort reports 2,000 hospitals, 54M annual referrals, and 130K in-network post-acute providers (vendor-reported scope metrics).",
+      "key_features": [
+        "Electronic post-acute referrals",
+        "Patient-choice and quality comparison",
+        "Payer authorization workflows",
+        "Post-acute provider network",
+        "Care-transition tracking",
+        "Readmission-risk and level-of-care analytics",
+        "Epic/Cerner integrations",
+        "Community/SDOH referrals"
+      ],
+      "market_position": "Major transition-network incumbent and part of WellSky, which reports more than 20,000 client sites across its broader portfolio; network scale is a major moat.",
+      "estimated_revenue": "CarePort product revenue unavailable; WellSky is private and public sources reviewed do not provide a defensible product-level figure.",
+      "estimated_headcount": "CarePort product headcount unavailable; WellSky group headcount not reliably disclosed in reviewed sources.",
+      "gaps_or_weaknesses": [
+        "Public positioning is stronger in transition/referral coordination than real-time inpatient bed orchestration.",
+        "Network and workflow complexity can create integration, data-quality, and onboarding friction.",
+        "Incumbent scale may make the product less accessible to small hospitals or focused use cases; price is undisclosed."
+      ],
+      "sources": [
+        "https://careporthealth.com/care-transition-platform/",
+        "https://wellsky.com/wellsky-introduces-enhanced-intelligence-to-the-discharge-process-in-careport-suite-of-solutions-to-facilitate-superior-care-transitions/",
+        "https://wellsky.com/careport-powered-by-wellsky-introduces-new-predictive-analytics-to-power-informed-hospital-discharge-decisions/"
+      ]
+    },
+    {
+      "name": "Epic Hospital Patient Flow / Grand Central",
+      "website": "https://www.epic.com/software/hospital-patient-flow/",
+      "discharge_planning_functionality": "Starts discharge planning at admission, shows predicted LOS and likely destinations, tracks capacity and bottlenecks in real time, and coordinates beds, transfers, transport, room cleaning, and discharge communication within the EHR.",
+      "pricing_model": "Bundled/enterprise EHR contract; standalone pricing not public.",
+      "estimated_price": "Unavailable; typically negotiated as part of a broader Epic deployment, not separately published.",
+      "target_customer": "Hospitals and large health systems already using Epic; patient flow centers, bed planners, nursing/unit coordinators, transport, environmental services, and clinical teams.",
+      "key_features": [
+        "EHR-native flow and capacity visibility",
+        "Predicted LOS and discharge destination",
+        "Bed planning and bottleneck identification",
+        "Transfer/transport coordination",
+        "Room-cleaning workflows",
+        "Mobile Rover updates",
+        "AI-assisted note summarization via Art"
+      ],
+      "market_position": "One of the strongest EHR-native incumbents; distribution and data access are its moat rather than a standalone discharge-planning niche brand.",
+      "estimated_revenue": "Epic company revenue is private; product-level revenue unavailable.",
+      "estimated_headcount": "Product-level headcount unavailable.",
+      "gaps_or_weaknesses": [
+        "Best fit requires Epic; cross-EHR and cross-organization post-acute network functionality is less prominent in the cited pages.",
+        "Large-suite procurement and implementation can be costly and slow.",
+        "An independent entrant may differentiate with lightweight, cross-EHR, department-specific workflows."
+      ],
+      "sources": [
+        "https://www.epic.com/software/hospital-patient-flow/",
+        "https://www.epic.com/software/capacity-optimization/",
+        "https://www.epic.com/software/art/"
+      ]
+    },
+    {
+      "name": "Oracle Health Patient Flow",
+      "website": "https://www.oracle.com/health/clinical-operations/",
+      "discharge_planning_functionality": "Provides near-real-time inpatient journey visibility, bed utilization, LOS, transfers, discharge details, dashboards, and intelligent bed-management workflows.",
+      "pricing_model": "Enterprise software contract; public product pricing unavailable.",
+      "estimated_price": "Unavailable.",
+      "target_customer": "Hospitals and health systems using Oracle Health/Cerner; clinical operations, bed management, transfer, and throughput leaders.",
+      "key_features": [
+        "Inpatient journey visibility",
+        "Bed utilization and management",
+        "LOS and discharge details",
+        "Enterprise dashboards",
+        "Automated bed-management workflows"
+      ],
+      "market_position": "Large-suite EHR/clinical-operations incumbent with broad distribution and integration advantages.",
+      "estimated_revenue": "Product-level revenue unavailable; Oracle reports company-wide results rather than this module.",
+      "estimated_headcount": "Product-level headcount unavailable.",
+      "gaps_or_weaknesses": [
+        "Most compelling for existing Oracle customers.",
+        "Broad-suite complexity and procurement burden.",
+        "Public materials provide less detail on specialized closed-loop post-acute transition networks than CarePort/PointClickCare."
+      ],
+      "sources": [
+        "https://www.oracle.com/health/clinical-operations/systems-operations/",
+        "https://www.oracle.com/customers/university-of-tennessee-medical-center/"
+      ]
+    },
+    {
+      "name": "TeleTracking Capacity IQ / AutoDischarge",
+      "website": "https://www.teletracking.com",
+      "discharge_planning_functionality": "Automates and predicts discharge-related operational steps to improve bed turnover, capacity utilization, and earlier discharge; broader platform manages healthcare operations and patient flow.",
+      "pricing_model": "Enterprise quote-based; public pricing not found.",
+      "estimated_price": "Unavailable.",
+      "target_customer": "Hospitals and health systems, patient flow/command centers, bed management, transport, and environmental services teams.",
+      "key_features": [
+        "Capacity management",
+        "AutoDischarge",
+        "Predictive/automated flow operations",
+        "Bed turnover and throughput optimization",
+        "Integrated operations platform"
+      ],
+      "market_position": "Longstanding specialized healthcare operations vendor with a broad integrated-flow positioning.",
+      "estimated_revenue": "Unavailable from reliable public sources.",
+      "estimated_headcount": "Unavailable from reliable public sources.",
+      "gaps_or_weaknesses": [
+        "Operational automation may require hardware/process integration and substantial implementation.",
+        "Public materials provide less detail on post-acute referral network coordination than transition-network vendors.",
+        "No public list price or product financials."
+      ],
+      "sources": [
+        "https://www.teletracking.com/resources/hospitals-see-earlier-patient-discharges-with-teletrackings-patienttracking-autodischarge/",
+        "https://www.teletracking.com/",
+        "https://www.teletracking.com/resources/expanding-operational-optimization-beyond-the-emr/"
+      ]
+    },
+    {
+      "name": "PointClickCare Transition IQ / PAC Management IQ",
+      "website": "https://pointclickcare.com",
+      "discharge_planning_functionality": "Supports hospital-to-post-acute transitions with ADT alerts, SNF/post-acute visibility, discharge-barrier coordination, readmission/episode accountability, and post-discharge monitoring.",
+      "pricing_model": "Enterprise quote-based; public list price not found.",
+      "estimated_price": "Unavailable.",
+      "target_customer": "Hospitals, health systems, SNFs/post-acute providers, clinics, and teams managing readmissions, transitions, HRRP, and episode-based accountability. Vendor materials cite 2,800+ hospitals and 3,600+ clinics for relevant network/alerts.",
+      "key_features": [
+        "Real-time post-discharge ADT alerts",
+        "Post-acute needs visibility",
+        "Discharge-barrier coordination",
+        "Readmission and episode monitoring",
+        "SNF/hospital interoperability",
+        "TEAM/HRRP readiness support"
+      ],
+      "market_position": "Strong post-acute data/network incumbent, particularly where hospital and SNF workflows must connect.",
+      "estimated_revenue": "Product-level revenue unavailable from reliable public sources.",
+      "estimated_headcount": "Product-level headcount unavailable from reliable public sources.",
+      "gaps_or_weaknesses": [
+        "More focused on transitions and post-acute accountability than enterprise inpatient capacity orchestration.",
+        "Network/data integration creates implementation and governance complexity.",
+        "No public list price."
+      ],
+      "sources": [
+        "https://pointclickcare.com/products/transition-iq-care-transitions-software/",
+        "https://pointclickcare.com/products/pac-management-hospitals-health-systems/",
+        "https://pointclickcare.com/blog/our-markets/health-plans/snf-discharge-planning-with-ai/"
+      ]
+    }
+  ],
+  "market": {
+    "market_definition": "Discharge-planning software coordinates patient-specific discharge needs, care plans, referrals, caregiver communication, post-acute services, and information exchange. Patient-flow management is broader: admission, bed/capacity management, transfers, care progression, discharge, transport, environmental services, and command-center operations. Commercial reports vary substantially in whether they include RTLS hardware, services, AI-only tools, EHR modules, and adjacent capacity workflows.",
+    "estimated_market_size": "Analyst estimates vary by scope: Roots Analysis estimates the global patient-flow-management-solutions market at $2.04B in 2025 and $13.88B in 2035; Mordor Intelligence estimates $1.89B in 2025 and $4.84B in 2030. These are not audited industry totals and should not be added together.",
+    "growth_rate": "Roots Analysis estimates 21.1% CAGR (2025-2035); Mordor Intelligence estimates 20.62% CAGR (2025-2030). A narrower AI-in-patient-flow estimate from Fortune Business Insights is $975.8M in 2025 to $9.8B in 2034, 29.22% CAGR. Differences reflect scope and methodology.",
+    "key_players": [
+      "Epic",
+      "Oracle Health",
+      "LeanTaaS",
+      "Qventus",
+      "TeleTracking",
+      "CarePort/WellSky",
+      "PointClickCare",
+      "Signal 1",
+      "CenTrak",
+      "Care Logistics"
+    ],
+    "market_trends": [
+      "EHR-embedded workflows and interoperability rather than standalone data silos",
+      "AI prediction of discharge readiness, EDD, barriers, demand, and capacity constraints",
+      "Automation of missing orders, escalations, transport, room cleaning, and referral steps",
+      "Enterprise command-center and real-time operational dashboards",
+      "Greater focus on post-acute transitions, patient choice, payer authorization, readmission reduction, and episode accountability",
+      "Cloud adoption and integration of software with RTLS/hardware",
+      "Labor shortages, excess length of stay, ED boarding, and margin pressure driving ROI-focused purchases",
+      "Regulatory and clinical emphasis on patient-centered discharge planning, caregiver involvement, and information exchange"
+    ],
+    "sources": [
+      "https://www.mordorintelligence.com/industry-reports/patient-flow-management-solutions-market",
+      "https://www.rootsanalysis.com/reports/patient-flow-management-solutions-market.html",
+      "https://www.fortunebusinessinsights.com/ai-in-patient-flow-management-market-118105",
+      "https://www.ecfr.gov/current/title-42/chapter-IV/subchapter-G/part-482/subpart-C/section-482.43",
+      "https://www.cms.gov/initiatives/burden-reduction/overview/interoperability/frequently-asked-questions/admission-discharge-transfer-patient-event-notification-conditions-participation-cop-42-cfr-482-24d",
+      "https://psnet.ahrq.gov/primer/discharge-planning-and-transitions-care"
+    ]
+  },
+  "research_limitations": [
+    "Most vendors do not publish product pricing, contract terms, absolute revenue, or product-level headcount; those fields are explicitly marked unavailable rather than estimated.",
+    "Market-size estimates differ materially because reports include different combinations of software, hardware, services, RTLS, AI, EHR modules, and capacity-management workflows.",
+    "Many outcome and market-position claims are vendor-reported and were not independently audited.",
+    "The product list is representative rather than exhaustive; regional NHS and smaller specialty vendors were not comprehensively enumerated.",
+    "Potential gaps are analyst inferences from public feature descriptions, not proof that a vendor lacks unpublished functionality.",
+    "Any PHI-handling product still has meaningful privacy, security, contracting, and potentially medical-device/regulatory implications; ‘minimal compliance’ is a design goal, not a guaranteed outcome."
+  ]
+}

@@ -1,0 +1,9 @@
+name = "care-backend-mvp"
+main = "src/index.js"
+compatibility_date = "2026-09-10"
+workers_dev = true
+
+[[d1_databases]]
+binding = "CARE_DB"
+database_name = "carecircle-db"
+database_id = "a7f11fa3-2a69-4126-9411-63eb16a64cb7"

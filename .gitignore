@@ -9,3 +9,5 @@ out/
 *.log
 .git-old/
 *.bak-c1
+*.bak-*
+.wrangler/

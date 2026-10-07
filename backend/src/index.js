@@ -443,7 +443,20 @@ async function handleApi(request, env, url) {
     });
   }
 
-  const barrierMatch = path.match(/^\/api\/barriers\/([^/]+)(?:\/([^/]+))?(?:\/(comments|readiness))?$/);
+  const readinessMatch = path.match(/^\/api\/barriers\/([^/]+)\/readiness$/);
+  if (readinessMatch) {
+    const [, rCaseId] = readinessMatch;
+    const rUser = await getAuthedUser(env, request);
+    if (!rUser) return unauthorized('Login required');
+    if (!(await canAccessCase(env, rUser, rCaseId))) return notFound('Care profile not found');
+    const rDoc = await getCaseDoc(env, rCaseId);
+    if (!rDoc) return notFound('Care profile not found');
+    const rBarriers = Array.isArray(rDoc.barriers) ? rDoc.barriers : [];
+    const rOpen = rBarriers.filter(b => b.status !== 'RESOLVED');
+    return json({ status: barrierReadiness(rBarriers), openBarriers: rOpen.length, highPriority: rOpen.filter(b => b.priority === 'HIGH').length });
+  }
+
+  const barrierMatch = path.match(/^\/api\/barriers\/([^/]+)(?:\/([^/]+))?(?:\/(comments))?$/);
   if (barrierMatch) {
     const [, caseId, barrierId, action] = barrierMatch;
     const bUser = await getAuthedUser(env, request);
@@ -463,9 +476,6 @@ async function handleApi(request, env, url) {
       await putCaseDoc(env, doc);
       await audit(env, caseId, 'barrier.create', { barrierId: barrier.id, type: barrier.type }, bUser.id);
       return json({ success: true, barrier, barriers: doc.barriers }, 201);
-    }
-    if (action === 'readiness' && method === 'GET') {
-      return json({ status: barrierReadiness(doc.barriers), openBarriers: doc.barriers.filter(b => b.status !== 'RESOLVED').length });
     }
     const idx = doc.barriers.findIndex(b => b.id === barrierId);
     if (idx < 0) return notFound('Barrier not found');

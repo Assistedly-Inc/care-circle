@@ -21,6 +21,8 @@ model User {
   comments         Comment[]
   Task             Task[]
   AuditLog         AuditLog[]
+  barriers         Barrier[]
+  barrierNotes     BarrierNote[]
 }
 
 // enum MemberRole {
@@ -43,6 +45,9 @@ model Case {
   medications      Medication[]
   tasks            Task[]
   consentGiven     Boolean      @default(false)
+  admissionAt      DateTime?
+  dischargeAt      DateTime?
+  barriers         Barrier[]
 
   @@index([coordinatorId])
 }
@@ -147,4 +152,38 @@ model CaseInvitation {
   @@index([email, status])
 
   @@map("case_invitations")
+}
+
+model Barrier {
+  id             String    @id @default(uuid())
+  caseId         String
+  type           String
+  priority       String    @default("MEDIUM")
+  description    String
+  ownerId        String?
+  status         String    @default("IDENTIFIED")
+  dueDate        DateTime?
+  escalatedAt    DateTime?
+  resolvedAt     DateTime?
+  resolutionNote String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  case           Case      @relation(fields: [caseId], references: [id])
+  owner          User?     @relation(fields: [ownerId], references: [id])
+  notes          BarrierNote[]
+
+  @@index([caseId, status])
+  @@index([type, status])
+}
+
+model BarrierNote {
+  id        String   @id @default(uuid())
+  barrierId String
+  authorId  String
+  content   String
+  createdAt DateTime @default(now())
+  barrier   Barrier  @relation(fields: [barrierId], references: [id])
+  author    User     @relation(fields: [authorId], references: [id])
+
+  @@index([barrierId])
 }

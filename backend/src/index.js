@@ -133,6 +133,8 @@ function normalizeCareProfile(input = {}, existing = {}) {
     },
     consent: input.consent ?? existing.consent ?? { given: false, scope: '', givenBy: '', givenAt: null },
     tasks: Array.isArray(input.tasks) ? input.tasks : (existing.tasks || []),
+    barriers: Array.isArray(input.barriers) ? input.barriers : (existing.barriers || []),
+    admissionDate: input.admissionDate ?? existing.admissionDate ?? null,
     status: input.status ?? existing.status ?? 'active',
     createdAt: existing.createdAt || input.createdAt || now(),
     updatedAt: now()
@@ -185,6 +187,13 @@ async function getAuthedUser(env, request) {
   if (!payload?.sub) return null;
   return qFirst(env, 'SELECT * FROM users WHERE id = ?', [payload.sub]);
 }
+async function canAccessCase(env, user, caseId) {
+  if (!user || !caseId) return false;
+  const row = await qFirst(env,
+    'SELECT 1 AS ok FROM cases WHERE id = ? AND coordinator_id = ? UNION ALL SELECT 1 AS ok FROM case_members WHERE case_id = ? AND user_id = ? LIMIT 1',
+    [caseId, user.id, caseId, user.id]);
+  return !!row;
+}
 
 const TASK_STATUSES = ['todo', 'in_progress', 'blocked', 'done', 'cancelled'];
 const TASK_TEMPLATES = [
@@ -227,6 +236,51 @@ function normalizeMedication(input = {}, existing = {}) {
     createdAt: existing.createdAt || input.createdAt || t,
     updatedAt: t
   };
+}
+
+// ── barriers (discharge barrier ledger) ────────────────────────────────────
+const BARRIER_TYPES = ['transport', 'medications', 'placement', 'insurance', 'family', 'pending_test', 'social', 'other'];
+const BARRIER_PRIORITIES = ['HIGH', 'MEDIUM', 'LOW'];
+const BARRIER_STATUSES = ['IDENTIFIED', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'ESCALATED'];
+
+function normalizeBarrier(input = {}, existing = {}) {
+  const t = now();
+  const status = BARRIER_STATUSES.includes(input.status ?? existing.status) ? (input.status ?? existing.status) : 'IDENTIFIED';
+  return {
+    id: existing.id || input.id || uid(),
+    type: BARRIER_TYPES.includes(input.type ?? existing.type) ? (input.type ?? existing.type) : 'other',
+    priority: BARRIER_PRIORITIES.includes(input.priority ?? existing.priority) ? (input.priority ?? existing.priority) : 'MEDIUM',
+    description: input.description ?? existing.description ?? '',
+    owner: input.owner ?? existing.owner ?? '',
+    status,
+    dueDate: input.dueDate ?? existing.dueDate ?? null,
+    escalatedAt: input.escalatedAt ?? existing.escalatedAt ?? null,
+    resolvedAt: input.resolvedAt ?? existing.resolvedAt ?? null,
+    resolutionNote: input.resolutionNote ?? existing.resolutionNote ?? null,
+    comments: Array.isArray(input.comments) ? input.comments : (existing.comments || []),
+    createdAt: existing.createdAt || input.createdAt || t,
+    updatedAt: t
+  };
+}
+
+function barrierBreached(b) {
+  if (!b.dueDate) return false;
+  const end = b.resolvedAt ? new Date(b.resolvedAt).getTime() : Date.now();
+  return end > new Date(b.dueDate).getTime();
+}
+
+function medianOf(values) {
+  if (!values.length) return null;
+  const s = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+}
+
+function barrierReadiness(barriers) {
+  const open = (barriers || []).filter(b => b.status !== 'RESOLVED');
+  if (open.some(b => b.priority === 'HIGH')) return 'RED';
+  if (open.some(b => b.priority === 'MEDIUM')) return 'AMBER';
+  return 'GREEN';
 }
 
 // ── API router ──────────────────────────────────────────────────────────────
@@ -284,7 +338,9 @@ async function handleApi(request, env, url) {
 
   // ── Care profiles (case documents) ──
   if ((path === '/api/care-profiles' || path === '/api/patients') && method === 'GET') {
-    const rows = await q(env, 'SELECT data FROM cases ORDER BY updated_at DESC');
+    const user = await getAuthedUser(env, request);
+    if (!user) return unauthorized('Login required to view profiles');
+    const rows = await q(env, 'SELECT data FROM cases WHERE coordinator_id = ? OR id IN (SELECT case_id FROM case_members WHERE user_id = ?) ORDER BY updated_at DESC', [user.id, user.id]);
     const profiles = rows.map(r => { try { return JSON.parse(r.data); } catch { return null; } }).filter(Boolean);
     return json({ profiles, patients: profiles });
   }
@@ -307,6 +363,9 @@ async function handleApi(request, env, url) {
   const taskMatch = path.match(/^\/api\/(?:care-profiles|patients)\/([^/]+)\/tasks(?:\/([^/]+))?(?:\/(comments|escalate))?$/);
   if (taskMatch) {
     const [, id, taskId, action] = taskMatch;
+    const taskUser = await getAuthedUser(env, request);
+    if (!taskUser) return unauthorized('Login required');
+    if (!(await canAccessCase(env, taskUser, id))) return notFound('Care profile not found');
     const doc = await getCaseDoc(env, id);
     if (!doc) return notFound('Care profile not found');
     doc.tasks = Array.isArray(doc.tasks) ? doc.tasks.map(t => normalizeTask(t)) : [];
@@ -343,7 +402,7 @@ async function handleApi(request, env, url) {
     }
     if (action === 'comments' && method === 'POST') {
       const body = await request.json().catch(() => ({}));
-      const comment = { id: uid(), text: body.text || '', author: body.author || 'frontend-tester', createdAt: now() };
+      const comment = { id: uid(), text: body.text || '', author: taskUser.name || taskUser.email || 'frontend-tester', createdAt: now() };
       if (!comment.text) return badRequest('Comment text is required');
       doc.tasks[idx].comments = doc.tasks[idx].comments || [];
       doc.tasks[idx].comments.push(comment);
@@ -360,10 +419,107 @@ async function handleApi(request, env, url) {
     }
   }
 
+  // ── barrier routes (discharge barrier ledger) ──
+  if (path === '/api/barriers/metrics' && method === 'GET') {
+    const mUser = await getAuthedUser(env, request);
+    if (!mUser) return unauthorized('Login required');
+    // scoped: only cases this user can access
+    const mRows = await q(env, 'SELECT data FROM cases WHERE coordinator_id = ? OR id IN (SELECT case_id FROM case_members WHERE user_id = ?)', [mUser.id, mUser.id]);
+    const mDocs = mRows.map(r => { try { return JSON.parse(r.data); } catch { return null; } }).filter(Boolean);
+    const all = mDocs.flatMap(d => Array.isArray(d.barriers) ? d.barriers : []);
+    const withDue = all.filter(b => b.dueDate);
+    const ttrByType = {};
+    for (const t of BARRIER_TYPES) {
+      const hours = all.filter(b => b.type === t && b.resolvedAt).map(b => (new Date(b.resolvedAt).getTime() - new Date(b.createdAt).getTime()) / 3600000);
+      if (hours.length) ttrByType[t] = Math.round(medianOf(hours) * 10) / 10;
+    }
+    const discharged = mDocs.filter(d => d.dischargeInstructions?.dischargeDate && d.admissionDate);
+    const sameDay = discharged.filter(d => d.admissionDate.slice(0, 10) === d.dischargeInstructions.dischargeDate.slice(0, 10)).length;
+    return json({
+      casesConsidered: discharged.length,
+      sameDayDischargeRate: discharged.length ? sameDay / discharged.length : null,
+      slaBreachRate: withDue.length ? withDue.filter(barrierBreached).length / withDue.length : null,
+      openBarrierCount: all.filter(b => b.status !== 'RESOLVED').length,
+      medianTimeToResolutionHoursByType: ttrByType
+    });
+  }
+
+  const readinessMatch = path.match(/^\/api\/barriers\/([^/]+)\/readiness$/);
+  if (readinessMatch) {
+    const [, rCaseId] = readinessMatch;
+    const rUser = await getAuthedUser(env, request);
+    if (!rUser) return unauthorized('Login required');
+    if (!(await canAccessCase(env, rUser, rCaseId))) return notFound('Care profile not found');
+    const rDoc = await getCaseDoc(env, rCaseId);
+    if (!rDoc) return notFound('Care profile not found');
+    const rBarriers = Array.isArray(rDoc.barriers) ? rDoc.barriers : [];
+    const rOpen = rBarriers.filter(b => b.status !== 'RESOLVED');
+    return json({ status: barrierReadiness(rBarriers), openBarriers: rOpen.length, highPriority: rOpen.filter(b => b.priority === 'HIGH').length });
+  }
+
+  const barrierMatch = path.match(/^\/api\/barriers\/([^/]+)(?:\/([^/]+))?(?:\/(comments))?$/);
+  if (barrierMatch) {
+    const [, caseId, barrierId, action] = barrierMatch;
+    const bUser = await getAuthedUser(env, request);
+    if (!bUser) return unauthorized('Login required');
+    if (!(await canAccessCase(env, bUser, caseId))) return notFound('Care profile not found');
+    const doc = await getCaseDoc(env, caseId);
+    if (!doc) return notFound('Care profile not found');
+    doc.barriers = Array.isArray(doc.barriers) ? doc.barriers.map(b => normalizeBarrier(b)) : [];
+
+    if (!barrierId && method === 'GET') return json({ barriers: doc.barriers });
+    if (!barrierId && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const barrier = normalizeBarrier(body);
+      if (!barrier.description) return badRequest('Barrier description is required');
+      if (body.owner && barrier.status === 'IDENTIFIED') barrier.status = 'ASSIGNED';
+      doc.barriers.push(barrier);
+      await putCaseDoc(env, doc);
+      await audit(env, caseId, 'barrier.create', { barrierId: barrier.id, type: barrier.type }, bUser.id);
+      return json({ success: true, barrier, barriers: doc.barriers }, 201);
+    }
+    const idx = doc.barriers.findIndex(b => b.id === barrierId);
+    if (idx < 0) return notFound('Barrier not found');
+    if (!action && method === 'GET') return json({ barrier: doc.barriers[idx] });
+    if (!action && (method === 'PATCH' || method === 'PUT')) {
+      const body = await request.json().catch(() => ({}));
+      const before = { ...doc.barriers[idx] };
+      const next = normalizeBarrier(body, doc.barriers[idx]);
+      if (body.status === 'RESOLVED' && !next.resolutionNote) return badRequest('resolutionNote is required to resolve a barrier');
+      if (body.status === 'RESOLVED') next.resolvedAt = now();
+      if (body.status === 'ESCALATED') next.escalatedAt = next.escalatedAt || now();
+      if (body.status && body.status !== 'RESOLVED' && before.resolvedAt) { next.resolvedAt = null; next.resolutionNote = null; }
+      if (next.owner && before.status === 'IDENTIFIED' && next.status === 'IDENTIFIED') next.status = 'ASSIGNED';
+      doc.barriers[idx] = next;
+      await putCaseDoc(env, doc);
+      await audit(env, caseId, 'barrier.update', { barrierId: next.id, fields: Object.keys(body) }, bUser.id, before, next);
+      return json({ success: true, barrier: next, barriers: doc.barriers });
+    }
+    if (!action && method === 'DELETE') {
+      const [removed] = doc.barriers.splice(idx, 1);
+      await putCaseDoc(env, doc);
+      await audit(env, caseId, 'barrier.delete', { barrierId: removed.id }, bUser.id);
+      return json({ success: true, barrier: removed, barriers: doc.barriers });
+    }
+    if (action === 'comments' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const comment = { id: uid(), text: body.text || '', author: bUser.name || bUser.email || 'mvp-user', createdAt: now() };
+      if (!comment.text) return badRequest('Comment text is required');
+      doc.barriers[idx].comments = doc.barriers[idx].comments || [];
+      doc.barriers[idx].comments.push(comment);
+      await putCaseDoc(env, doc);
+      await audit(env, caseId, 'barrier.comment', { barrierId: doc.barriers[idx].id, commentId: comment.id }, bUser.id);
+      return json({ success: true, comment, barrier: doc.barriers[idx], barriers: doc.barriers });
+    }
+  }
+
   // nested medication routes
   const medMatch = path.match(/^\/api\/(?:care-profiles|patients)\/([^/]+)\/medications\/([^/]+)(?:\/(verify|notes))?$/);
   if (medMatch) {
     const [, id, medId, action] = medMatch;
+    const medUser = await getAuthedUser(env, request);
+    if (!medUser) return unauthorized('Login required');
+    if (!(await canAccessCase(env, medUser, id))) return notFound('Care profile not found');
     const doc = await getCaseDoc(env, id);
     if (!doc) return notFound('Care profile not found');
     doc.medications = Array.isArray(doc.medications) ? doc.medications.map(m => normalizeMedication(m)) : [];
@@ -403,6 +559,9 @@ async function handleApi(request, env, url) {
   const profileMatch = path.match(/^\/api\/(?:care-profiles|patients)\/([^/]+)(?:\/(emergency-contacts|medications|discharge-instructions|audit))?$/);
   if (profileMatch) {
     const [, id, sub] = profileMatch;
+    const profileUser = await getAuthedUser(env, request);
+    if (!profileUser) return unauthorized('Login required');
+    if (!(await canAccessCase(env, profileUser, id))) return notFound('Care profile not found');
     const doc = await getCaseDoc(env, id);
     if (!doc) return notFound('Care profile not found');
 
@@ -461,6 +620,7 @@ async function handleApi(request, env, url) {
     if (!caseId || !email) return badRequest('caseId and email are required');
     const doc = await getCaseDoc(env, caseId);
     if (!doc) return notFound('Care profile not found');
+    if (!(await canAccessCase(env, user, caseId))) return notFound('Care profile not found');
     const token = uid();
     const t = now();
     const expires = new Date(Date.now() + 7 * 86400000).toISOString();
@@ -472,10 +632,16 @@ async function handleApi(request, env, url) {
   }
 
   if (path === '/api/invitations/list' && method === 'GET') {
+    const listUser = await getAuthedUser(env, request);
+    if (!listUser) return unauthorized('Login required');
     const caseId = url.searchParams.get('caseId');
     let rows;
-    if (caseId) rows = await q(env, 'SELECT * FROM case_invitations WHERE case_id = ? ORDER BY created_at DESC', [caseId]);
-    else rows = await q(env, 'SELECT * FROM case_invitations ORDER BY created_at DESC');
+    if (caseId) {
+      if (!(await canAccessCase(env, listUser, caseId))) return notFound('Care profile not found');
+      rows = await q(env, 'SELECT * FROM case_invitations WHERE case_id = ? ORDER BY created_at DESC', [caseId]);
+    } else {
+      rows = await q(env, 'SELECT * FROM case_invitations WHERE invited_by = ? ORDER BY created_at DESC', [listUser.id]);
+    }
     return json({ invitations: rows });
   }
 
@@ -486,6 +652,7 @@ async function handleApi(request, env, url) {
     const body = await request.json().catch(() => ({}));
     const { caseId, subject, text, html } = body;
     if (!text && !html) return badRequest('text or html is required');
+    if (caseId && !(await canAccessCase(env, user, caseId))) return notFound('Care profile not found');
     const doc = caseId ? await getCaseDoc(env, caseId) : null;
     const to = [];
     if (doc) {
@@ -520,6 +687,7 @@ async function handleApi(request, env, url) {
     if (!caseId) return badRequest('caseId is required');
     const doc = await getCaseDoc(env, caseId);
     if (!doc) return notFound('Care profile not found');
+    if (!(await canAccessCase(env, user, caseId))) return notFound('Care profile not found');
     doc.smsPreference = { phone: phone || '', updatedAt: now() };
     await putCaseDoc(env, doc);
     await audit(env, caseId, 'sms.preference.update', { phone: phone || '' }, user.id);

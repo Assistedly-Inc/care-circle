@@ -7,3 +7,5 @@ out/
 .env
 .env.*
 *.log
+.git-old/
+*.bak-c1

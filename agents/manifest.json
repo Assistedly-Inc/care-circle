@@ -1,12 +1,17 @@
 {
   "registry": "care-circle-agents",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "agents": [
     {
       "name": "care-circle-operator",
       "description": "Operates the Care Circle care-coordination API with PHI-safe practices",
       "definition": "/care-circle-operator.md",
       "api_base": "https://care-backend-mvp.forwardjump-com198.workers.dev"
+    },
+    {
+      "name": "server-health-maintainer",
+      "description": "Non-disruptive Linux server health monitoring, cleanup, and hardening",
+      "definition": "/server-health-maintainer.md"
     }
   ]
 }

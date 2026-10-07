@@ -133,6 +133,7 @@ function normalizeCareProfile(input = {}, existing = {}) {
     },
     consent: input.consent ?? existing.consent ?? { given: false, scope: '', givenBy: '', givenAt: null },
     tasks: Array.isArray(input.tasks) ? input.tasks : (existing.tasks || []),
+    barriers: Array.isArray(input.barriers) ? input.barriers : (existing.barriers || []),
     status: input.status ?? existing.status ?? 'active',
     createdAt: existing.createdAt || input.createdAt || now(),
     updatedAt: now()
@@ -234,6 +235,51 @@ function normalizeMedication(input = {}, existing = {}) {
     createdAt: existing.createdAt || input.createdAt || t,
     updatedAt: t
   };
+}
+
+// ── barriers (discharge barrier ledger) ────────────────────────────────────
+const BARRIER_TYPES = ['transport', 'medications', 'placement', 'insurance', 'family', 'pending_test', 'social', 'other'];
+const BARRIER_PRIORITIES = ['HIGH', 'MEDIUM', 'LOW'];
+const BARRIER_STATUSES = ['IDENTIFIED', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'ESCALATED'];
+
+function normalizeBarrier(input = {}, existing = {}) {
+  const t = now();
+  const status = BARRIER_STATUSES.includes(input.status ?? existing.status) ? (input.status ?? existing.status) : 'IDENTIFIED';
+  return {
+    id: existing.id || input.id || uid(),
+    type: BARRIER_TYPES.includes(input.type ?? existing.type) ? (input.type ?? existing.type) : 'other',
+    priority: BARRIER_PRIORITIES.includes(input.priority ?? existing.priority) ? (input.priority ?? existing.priority) : 'MEDIUM',
+    description: input.description ?? existing.description ?? '',
+    owner: input.owner ?? existing.owner ?? '',
+    status,
+    dueDate: input.dueDate ?? existing.dueDate ?? null,
+    escalatedAt: input.escalatedAt ?? existing.escalatedAt ?? null,
+    resolvedAt: input.resolvedAt ?? existing.resolvedAt ?? null,
+    resolutionNote: input.resolutionNote ?? existing.resolutionNote ?? null,
+    comments: Array.isArray(input.comments) ? input.comments : (existing.comments || []),
+    createdAt: existing.createdAt || input.createdAt || t,
+    updatedAt: t
+  };
+}
+
+function barrierBreached(b) {
+  if (!b.dueDate) return false;
+  const end = b.resolvedAt ? new Date(b.resolvedAt).getTime() : Date.now();
+  return end > new Date(b.dueDate).getTime();
+}
+
+function medianOf(values) {
+  if (!values.length) return null;
+  const s = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+}
+
+function barrierReadiness(barriers) {
+  const open = (barriers || []).filter(b => b.status !== 'RESOLVED');
+  if (open.some(b => b.priority === 'HIGH')) return 'RED';
+  if (open.some(b => b.priority === 'MEDIUM')) return 'AMBER';
+  return 'GREEN';
 }
 
 // ── API router ──────────────────────────────────────────────────────────────
@@ -369,6 +415,90 @@ async function handleApi(request, env, url) {
       await putCaseDoc(env, doc);
       await audit(env, id, 'task.escalate', { taskId });
       return json({ success: true, task: doc.tasks[idx], tasks: doc.tasks });
+    }
+  }
+
+  // ── barrier routes (discharge barrier ledger) ──
+  if (path === '/api/barriers/metrics' && method === 'GET') {
+    const mUser = await getAuthedUser(env, request);
+    if (!mUser) return unauthorized('Login required');
+    // scoped: only cases this user can access
+    const mRows = await q(env, 'SELECT data FROM cases WHERE coordinator_id = ? OR id IN (SELECT case_id FROM case_members WHERE user_id = ?)', [mUser.id, mUser.id]);
+    const mDocs = mRows.map(r => { try { return JSON.parse(r.data); } catch { return null; } }).filter(Boolean);
+    const all = mDocs.flatMap(d => Array.isArray(d.barriers) ? d.barriers : []);
+    const withDue = all.filter(b => b.dueDate);
+    const ttrByType = {};
+    for (const t of BARRIER_TYPES) {
+      const hours = all.filter(b => b.type === t && b.resolvedAt).map(b => (new Date(b.resolvedAt).getTime() - new Date(b.createdAt).getTime()) / 3600000);
+      if (hours.length) ttrByType[t] = Math.round(medianOf(hours) * 10) / 10;
+    }
+    const discharged = mDocs.filter(d => d.dischargeInstructions?.dischargeDate && d.admissionDate);
+    const sameDay = discharged.filter(d => d.admissionDate.slice(0, 10) === d.dischargeInstructions.dischargeDate.slice(0, 10)).length;
+    return json({
+      casesConsidered: discharged.length,
+      sameDayDischargeRate: discharged.length ? sameDay / discharged.length : null,
+      slaBreachRate: withDue.length ? withDue.filter(barrierBreached).length / withDue.length : null,
+      openBarrierCount: all.filter(b => b.status !== 'RESOLVED').length,
+      medianTimeToResolutionHoursByType: ttrByType
+    });
+  }
+
+  const barrierMatch = path.match(/^\/api\/barriers\/([^/]+)(?:\/([^/]+))?(?:\/(comments|readiness))?$/);
+  if (barrierMatch) {
+    const [, caseId, barrierId, action] = barrierMatch;
+    const bUser = await getAuthedUser(env, request);
+    if (!bUser) return unauthorized('Login required');
+    if (!(await canAccessCase(env, bUser, caseId))) return notFound('Care profile not found');
+    const doc = await getCaseDoc(env, caseId);
+    if (!doc) return notFound('Care profile not found');
+    doc.barriers = Array.isArray(doc.barriers) ? doc.barriers.map(b => normalizeBarrier(b)) : [];
+
+    if (!barrierId && method === 'GET') return json({ barriers: doc.barriers });
+    if (!barrierId && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const barrier = normalizeBarrier(body);
+      if (!barrier.description) return badRequest('Barrier description is required');
+      if (body.owner && barrier.status === 'IDENTIFIED') barrier.status = 'ASSIGNED';
+      doc.barriers.push(barrier);
+      await putCaseDoc(env, doc);
+      await audit(env, caseId, 'barrier.create', { barrierId: barrier.id, type: barrier.type }, bUser.id);
+      return json({ success: true, barrier, barriers: doc.barriers }, 201);
+    }
+    if (action === 'readiness' && method === 'GET') {
+      return json({ status: barrierReadiness(doc.barriers), openBarriers: doc.barriers.filter(b => b.status !== 'RESOLVED').length });
+    }
+    const idx = doc.barriers.findIndex(b => b.id === barrierId);
+    if (idx < 0) return notFound('Barrier not found');
+    if (!action && method === 'GET') return json({ barrier: doc.barriers[idx] });
+    if (!action && (method === 'PATCH' || method === 'PUT')) {
+      const body = await request.json().catch(() => ({}));
+      const before = { ...doc.barriers[idx] };
+      const next = normalizeBarrier(body, doc.barriers[idx]);
+      if (body.status === 'RESOLVED' && !next.resolutionNote) return badRequest('resolutionNote is required to resolve a barrier');
+      if (body.status === 'RESOLVED') next.resolvedAt = now();
+      if (body.status === 'ESCALATED') next.escalatedAt = next.escalatedAt || now();
+      if (body.status && body.status !== 'RESOLVED' && before.resolvedAt) { next.resolvedAt = null; next.resolutionNote = null; }
+      if (next.owner && before.status === 'IDENTIFIED' && next.status === 'IDENTIFIED') next.status = 'ASSIGNED';
+      doc.barriers[idx] = next;
+      await putCaseDoc(env, doc);
+      await audit(env, caseId, 'barrier.update', { barrierId: next.id, fields: Object.keys(body) }, bUser.id, before, next);
+      return json({ success: true, barrier: next, barriers: doc.barriers });
+    }
+    if (!action && method === 'DELETE') {
+      const [removed] = doc.barriers.splice(idx, 1);
+      await putCaseDoc(env, doc);
+      await audit(env, caseId, 'barrier.delete', { barrierId: removed.id }, bUser.id);
+      return json({ success: true, barrier: removed, barriers: doc.barriers });
+    }
+    if (action === 'comments' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const comment = { id: uid(), text: body.text || '', author: body.author || 'mvp-user', createdAt: now() };
+      if (!comment.text) return badRequest('Comment text is required');
+      doc.barriers[idx].comments = doc.barriers[idx].comments || [];
+      doc.barriers[idx].comments.push(comment);
+      await putCaseDoc(env, doc);
+      await audit(env, caseId, 'barrier.comment', { barrierId: doc.barriers[idx].id, commentId: comment.id }, bUser.id);
+      return json({ success: true, comment, barrier: doc.barriers[idx], barriers: doc.barriers });
     }
   }
 

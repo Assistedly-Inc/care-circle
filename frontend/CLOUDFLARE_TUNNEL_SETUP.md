@@ -1,0 +1,331 @@
+# Cloudflare Tunnel for Branch-Specific Deployments
+
+This setup creates isolated tunnels for each git branch, allowing you to access each deployment at a unique, branch-specific URL.
+
+## Architecture
+
+```
+canary.<branch>.care-circle-preview.pages.dev → Cloudflare Tunnel → Local dev server (port 3000)
+```
+
+Each branch gets:
+- Unique hostname (e.g., `remove-see-how-families-button.care-circle-preview.pages.dev`)
+- Isolated environment
+- Separate tunnel configuration
+
+## Prerequisites
+
+1. **Cloudflare Account** with Workers and Tunnel access
+2. **wrangler CLI** installed:
+   ```bash
+   npm install -g wrangler
+   ```
+3. **Cloudflare Account ID** (from dashboard)
+4. **Docker** (optional, for containerized deployments)
+
+## Quick Start
+
+### Step 1: Install wrangler and login
+
+```bash
+cd /Users/dev/care-mvp-frontend/care-circle-frontend
+npm install -g wrangler
+wrangler login
+```
+
+### Step 2: Get your Cloudflare Account ID
+
+From your Cloudflare dashboard:
+- Account → Overview → Copy the Account ID
+
+### Step 3: Create a tunnel for your local development
+
+```bash
+chmod +x scripts/deploy-branch-tunnel.sh
+./scripts/deploy-branch-tunnel.sh main http://localhost:3000
+```
+
+This will:
+- Create tunnel config for `main` branch
+- Generate hostname: `main.care-circle-preview.pages.dev`
+- Configure ingress to route to `http://localhost:3000`
+
+### Step 4: Create the tunnel
+
+```bash
+# Create tunnel in Cloudflare
+cd tunnel-configs/main
+WRANGLER_ACCOUNT_ID=your_account_id wrangler tunnels create care-circle-main
+```
+
+### Step 5: Get your tunnel credential file
+
+Cloudflare will generate a `~/.cloudflare/dev/XXXXX.json` file
+
+### Step 6: Run the tunnel
+
+```bash
+wrangler tunnel route dns care-circle-main remove-see-how-families-button.care-circle-preview.pages.dev
+wrangler tunnel run care-circle-main
+```
+
+Now you can access: `https://care-circle-main-otherserver.cloudflareaccess.com`
+
+## For Your Current Branch
+
+### Create tunnel for your remove-see-how-families-button branch:
+
+```bash
+# Create config
+./scripts/deploy-branch-tunnel.sh remove-see-how-families-button https://e995ba88.care-circle-ctl-2.pages.dev
+
+# Go to the tunnel config directory
+cd tunnel-configs/remove-see-how-families-button
+
+# Create the tunnel in Cloudflare
+WRANGLER_ACCOUNT_ID=your_account_id wrangler tunnels create care-circle-remove-see-how-families-button
+
+# Add hostname
+wrangler tunnel route dns care-circle-remove-see-how-families-button remove-see-how-families-button.care-circle-preview.pages.dev
+
+# Run tunnel
+wrangler tunnel run care-circle-remove-see-how-families-button
+```
+
+Now access: `https://remove-see-how-families-button.care-circle-preview.pages.dev`
+
+## Using the Script (Recommended)
+
+The provided `deploy-branch-tunnel.sh` script automates this process:
+
+```bash
+# For main branch (points to your local dev server)
+./scripts/deploy-branch-tunnel.sh main http://localhost:3000
+
+# For your feature branch (points to your GitHub Pages preview)
+./scripts/deploy-branch-tunnel.sh remove-see-how-families-button https://e995ba88.care-circle-ctl-2.pages.dev
+
+# For any branch
+./scripts/deploy-branch-tunnel.sh <branch-name> <deployment-url>
+```
+
+The script will:
+1. ✅ Create tunnel configuration
+2. ✅ Generate unique hostname
+3. ✅ Configure ingress rules
+4. ✅ Provide next steps for completing setup
+
+## Setting Up Multiple Branches
+
+You can create tunnels for any number of branches:
+
+```bash
+# Main branch (local dev)
+./scripts/deploy-branch-tunnel.sh main http://localhost:3000
+
+# Development (another preview)
+./scripts/deploy-branch-tunnel.sh development https://your-dev-preview.pages.dev
+
+# Your feature branch
+./scripts/deploy-branch-tunnel.sh remove-see-how-families-button https://e995ba88.care-circle-ctl-2.pages.dev
+```
+
+Each tunnel will be accessible at:
+- `main.care-circle-preview.pages.dev`
+- `development.care-circle-preview.pages.dev`
+- `remove-see-how-families-button.care-circle-preview.pages.dev`
+
+## Accessing Your Branch Preview
+
+### Option 1: Via Cloudflare (Auto-generated URL)
+
+When you run `wrangler tunnel run`, Cloudflare provides a temporary URL like:
+```
+https://care-circle-main-abc123.cloudflareaccess.com
+```
+
+### Option 2: Via Custom Domain
+
+Add a custom domain that matches your expected pattern:
+```
+https://main.care-circle-preview.pages.dev
+```
+
+## Managing Tunnels
+
+### Run a specific tunnel:
+```bash
+cd tunnel-configs/remove-see-how-families-button
+wrangler tunnel run care-circle-remove-see-how-families-button
+```
+
+### Stop a tunnel:
+Press `Ctrl+C` in the terminal where the tunnel is running.
+
+### List all tunnels:
+```bash
+wrangler tunnel list
+```
+
+### Delete a tunnel:
+```bash
+wrangler tunnel delete care-circle-<branch-name>
+```
+
+## Configuration Files
+
+Tunnel configurations are stored in `tunnel-configs/<branch>/`:
+
+```
+tunnel-configs/
+├── main/
+│   ├── config.json  # Tunnel configuration
+│   └── .dev.json    # Tunnel credential file (generated by wrangler)
+├── remove-see-how-families-button/
+│   ├── config.json
+│   └── .dev.json
+└── config.json      # Tunnel manager configuration
+```
+
+## Docker Support (Optional)
+
+If you prefer containerized deployments:
+
+### Dockerfile for local dev:
+```dockerfile
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci --only=production
+
+COPY . .
+
+EXPOSE 3000
+
+CMD ["npm", "run", "start"]
+```
+
+### Run tunnel with Docker:
+```bash
+docker build -t care-circle .
+docker run -p 3000:3000 care-circle
+```
+
+Then point the tunnel to `http://localhost:3000`.
+
+## Troubleshooting
+
+### Tunnel won't start:
+```bash
+# Check if tunnel name is unique
+wrangler tunnel list
+
+# Ensure port 3000 is available
+lsof -i :3000
+```
+
+### Can't access from external network:
+```bash
+# Check your local firewall
+sudo pfctl -d  # Temporarily disable firewall for testing
+```
+
+### Tunnel works locally but not externally:
+- Ensure you're accessing the Cloudflare-generated URL (`*.cloudflareaccess.com`)
+- Verify your network allows outbound connections
+
+### Dev server not responding:
+```bash
+# Check if Next.js is actually running
+curl http://localhost:3000
+
+# Check Next.js logs
+npm run dev
+```
+
+## Cost & Limits
+
+- **Tunnels**: Free (unlimited tunnels, but limited concurrent connections)
+- **Bandwidth**: Unlimited
+- **Data transfer**: Free (up to ~10GB/month, then charges apply)
+
+## Advanced Setup
+
+### Auto-start tunnels on git push:
+
+```bash
+# Install git hooks
+hooks/create-tunnel.sh  # Called on git push
+```
+
+### Environment-specific configurations:
+
+```bash
+# Development
+./scripts/deploy-branch-tunnel.sh dev http://localhost:3000
+
+# Staging
+./scripts/deploy-branch-tunnel.sh staging https://staging.care-circle.pages.dev
+
+# Production (your existing Pages deployment)
+./scripts/deploy-branch-tunnel.sh main https://e995ba88.care-circle-ctl-2.pages.dev
+```
+
+### Secret management for API keys:
+
+```bash
+wrangler secret put API_KEY --config tunnel-configs/remove-see-how-families-button/.dev.json
+```
+
+## Quick Reference
+
+### Commands
+```bash
+# Create tunnel config for a branch
+./scripts/deploy-branch-tunnel.sh <branch> <url-or-port>
+
+# Create tunnel in Cloudflare
+wrangler tunnels create care-circle-<branch>
+
+# Add DNS hostname
+wrangler tunnel route dns care-circle-<branch> <branch>.care-circle-preview.pages.dev
+
+# Run tunnel
+wrangler tunnel run care-circle-<branch>
+
+# List tunnels
+wrangler tunnel list
+```
+
+### URLs
+- Local development: `http://localhost:3000`
+- Tunnel preview (auto-generated): `https://care-circle-<branch>-*.cloudflareaccess.com`
+- Custom domain: `https://<branch>.care-circle-preview.pages.dev`
+
+## Getting Started with Your Feature Branch
+
+Since your feature branch is currently on a GitHub preview URL, here's the complete command sequence:
+
+```bash
+# 1. Create the tunnel configuration
+./scripts/deploy-branch-tunnel.sh remove-see-how-families-button https://e995ba88.care-circle-ctl-2.pages.dev
+
+# 2. Create the tunnel in Cloudflare
+cd tunnel-configs/remove-see-how-families-button
+WRANGLER_ACCOUNT_ID=your_account_id_here wrangler tunnels create care-circle-remove-see-how-families-button
+
+# 3. Add the custom hostname
+wrangler tunnel route dns care-circle-remove-see-how-families-button remove-see-how-families-button.care-circle-preview.pages.dev
+
+# 4. Run the tunnel
+wrangler tunnel run care-circle-remove-see-how-families-button
+```
+
+After running these commands:
+1. Go to the tunnel's auto-generated URL: `https://care-circle-remove-see-how-families-button-*.cloudflareaccess.com`
+2. You'll see your branch without the "See How Families Use It" button
+3. Other team members can access the same URL for collaboration
+
+The tunnel will remain running until you press `Ctrl+C`. Once closed, the tunnel is preserved in your account for easy restarting.

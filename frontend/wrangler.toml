@@ -1,0 +1,21 @@
+name = "care-circle"
+compatibility_date = "2024-01-01"
+
+[build]
+command = "npm run build"
+output_directory = "out"
+
+[build.environment]
+NODE_VERSION = "20"
+
+[[kv_namespaces]]
+binding = "CARE_CIRCLE"
+id = "placeholder"
+
+[site]
+bucket = "./out"
+pages_build_output_dir = "out"
+
+pages_build_output_dir = "out"
+
+pages_build_output_dir = "out"

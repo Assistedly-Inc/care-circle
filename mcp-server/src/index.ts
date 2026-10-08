@@ -183,6 +183,12 @@ function buildServer(env: Env) {
   );
 
   server.registerTool(
+    "export_care_profile_fhir",
+    { description: "Export a care profile as a FHIR R4 Bundle (collection) with Patient, MedicationStatement, Task, Consent, and DocumentReference resources. Contains PHI - do not forward outside the care circle.", inputSchema: { profile_id: z.string() } },
+    async ({ profile_id }) => { try { return ok(await api(env, "Export FHIR", "GET", `/api/care-profiles/${profile_id}/export/fhir`)); } catch (err) { return fail(err); } },
+  );
+
+  server.registerTool(
     "send_invitation",
     { description: "Invite someone to a care profile's circle. role is coordinator, caregiver, or family.", inputSchema: { profile_id: ID_SCHEMA, email: z.string(), role: z.enum(["coordinator", "caregiver", "family"]).optional() } },
     async (a) => { try { requireWritesEnabled(env); return ok(await api(env, "Send invitation", "POST", "/api/invitations/send", { caseId: a.profile_id, email: a.email, role: a.role })); } catch (err) { return fail(err); } },

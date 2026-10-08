@@ -555,6 +555,109 @@ async function handleApi(request, env, url) {
     }
   }
 
+  // ── FHIR export (R4) ──
+  if (path.startsWith('/api/care-profiles/') && path.endsWith('/export/fhir') && method === 'GET') {
+    const caseId = path.split('/')[3];
+    const user = await getAuthedUser(env, request);
+    if (!user) return unauthorized();
+    if (!(await canAccessCase(env, user, caseId))) return notFound('Care profile not found');
+    const doc = await getCaseDoc(env, caseId);
+    if (!doc) return notFound('Care profile not found');
+    const base = 'https://care-circle.local/fhir';
+    const entries = [];
+    const add = (resource) => entries.push({ fullUrl: base + '/' + resource.resourceType + '/' + resource.id, resource });
+    const isDate = (d) => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d);
+    const displayName = doc.patient?.displayName || [doc.patient?.firstName, doc.patient?.lastName].filter(Boolean).join(' ').trim();
+    const parts = displayName ? displayName.split(' ') : [];
+    add({
+      resourceType: 'Patient',
+      id: caseId,
+      name: parts.length ? [{ text: displayName, family: parts.length > 1 ? parts[parts.length - 1] : undefined, given: parts.length > 1 ? parts.slice(0, -1) : undefined }] : undefined,
+      birthDate: isDate(doc.patient?.dateOfBirth) ? doc.patient.dateOfBirth : undefined,
+      gender: ['male', 'female', 'other', 'unknown'].includes(String(doc.patient?.gender || '').toLowerCase()) ? String(doc.patient.gender).toLowerCase() : undefined,
+      telecom: doc.patient?.phone ? [{ system: 'phone', value: doc.patient.phone }] : undefined,
+      address: doc.patient?.address ? [{ text: doc.patient.address }] : undefined,
+    });
+    for (const med of (doc.medications || [])) {
+      add({
+        resourceType: 'MedicationStatement',
+        id: 'med-' + med.id,
+        status: med.verified ? 'active' : 'intended',
+        medicationCodeableConcept: { text: med.name },
+        subject: { reference: 'Patient/' + caseId },
+        dateAsserted: med.updatedAt || med.createdAt,
+        note: med.notes ? [{ text: med.notes }] : undefined,
+        dosage: (med.dose || med.schedule) ? [{ text: [med.dose, med.schedule].filter(Boolean).join('; ') }] : undefined,
+      });
+    }
+    const taskStatus = { todo: 'requested', in_progress: 'in-progress', blocked: 'on-hold', done: 'completed', cancelled: 'cancelled' };
+    for (const t of (doc.tasks || [])) {
+      add({
+        resourceType: 'Task',
+        id: 'task-' + t.id,
+        status: taskStatus[t.status] || 'requested',
+        intent: 'order',
+        description: t.title,
+        note: t.description ? [{ text: t.description }] : undefined,
+        executionPeriod: t.dueDate ? { end: t.dueDate } : undefined,
+        authoredOn: t.createdAt,
+        owner: t.owner ? { display: t.owner } : undefined,
+      });
+    }
+    if (doc.consent) {
+      add({
+        resourceType: 'Consent',
+        id: 'consent-1',
+        status: doc.consent.given ? 'active' : 'inactive',
+        scope: { coding: [{ system: 'http://terminology.hl7.org/CodeSystem/consentscope', code: 'patient-privacy', display: 'Privacy Consent' }] },
+        patient: { reference: 'Patient/' + caseId },
+        dateTime: doc.consent.givenAt || undefined,
+        provision: { type: doc.consent.given ? 'permit' : 'deny' },
+      });
+    }
+    const di = doc.dischargeInstructions || {};
+    const diText = [
+      di.summary ? 'Summary: ' + di.summary : null,
+      di.dischargeDate ? 'Discharge date: ' + di.dischargeDate : null,
+      di.followUp ? 'Follow-up: ' + di.followUp : null,
+      di.activity ? 'Activity: ' + di.activity : null,
+      di.diet ? 'Diet: ' + di.diet : null,
+      Array.isArray(di.redFlags) && di.redFlags.length ? 'Red flags: ' + di.redFlags.join('; ') : null,
+    ].filter(Boolean).join('\n');
+    if (diText) {
+      add({
+        resourceType: 'DocumentReference',
+        id: 'discharge-instructions',
+        status: 'current',
+        type: { text: 'Discharge instructions' },
+        subject: { reference: 'Patient/' + caseId },
+        date: doc.updatedAt,
+        content: [{ attachment: { contentType: 'text/plain', data: btoa(diText), title: 'Discharge instructions' } }],
+      });
+    }
+    const bundle = { resourceType: 'Bundle', id: 'care-profile-' + caseId, type: 'collection', timestamp: new Date().toISOString(), entry: entries };
+    await audit(env, caseId, 'export.fhir', { resources: entries.length }, user.id);
+    return new Response(JSON.stringify(bundle), { status: 200, headers: { 'Content-Type': 'application/fhir+json', ...corsHeaders } });
+  }
+
+  if (path.startsWith('/api/care-profiles/') && path.endsWith('/export/summary') && method === 'GET') {
+    const caseId = path.split('/')[3];
+    const user = await getAuthedUser(env, request);
+    if (!user) return unauthorized();
+    if (!(await canAccessCase(env, user, caseId))) return notFound('Care profile not found');
+    const doc = await getCaseDoc(env, caseId);
+    if (!doc) return notFound('Care profile not found');
+    await audit(env, caseId, 'export.summary', {}, user.id);
+    return json({
+      generatedAt: new Date().toISOString(),
+      patient: doc.patient || {},
+      medications: doc.medications || [],
+      tasks: doc.tasks || [],
+      dischargeInstructions: doc.dischargeInstructions || {},
+      consent: doc.consent || {},
+    });
+  }
+
   // profile + sub-resources
   const profileMatch = path.match(/^\/api\/(?:care-profiles|patients)\/([^/]+)(?:\/(emergency-contacts|medications|discharge-instructions|audit))?$/);
   if (profileMatch) {

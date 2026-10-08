@@ -90,6 +90,13 @@ const CASES = [
 
 async function main() {
   await login();
+  const existing = await cc('GET', '/api/care-profiles');
+  const seededNames = CASES.map(c => c.first.toLowerCase());
+  const dup = (existing.profiles || []).filter(p => seededNames.includes(String(p.patient?.firstName || '').toLowerCase()));
+  if (dup.length) {
+    console.error(`ABORT: seed data already present (${dup.length} matching cases). Delete them first, then re-run.`);
+    process.exit(1);
+  }
   let created = 0, resolvedBarriers = 0, outcomeCount = 0;
   for (const c of CASES) {
     const prof = await cc('POST', '/api/care-profiles', {

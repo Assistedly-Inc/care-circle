@@ -135,6 +135,9 @@ function normalizeCareProfile(input = {}, existing = {}) {
     tasks: Array.isArray(input.tasks) ? input.tasks : (existing.tasks || []),
     barriers: Array.isArray(input.barriers) ? input.barriers : (existing.barriers || []),
     admissionDate: input.admissionDate ?? existing.admissionDate ?? null,
+    dischargedAt: input.dischargedAt ?? existing.dischargedAt ?? null,
+    readmission30d: input.readmission30d ?? existing.readmission30d ?? null,
+    siteId: input.siteId ?? existing.siteId ?? 'demo',
     status: input.status ?? existing.status ?? 'active',
     createdAt: existing.createdAt || input.createdAt || now(),
     updatedAt: now()
@@ -165,8 +168,8 @@ async function getCaseDoc(env, id) {
 async function putCaseDoc(env, doc) {
   const row = await getCaseRow(env, doc.id);
   if (!row) return null;
-  await exec(env, 'UPDATE cases SET data = ?, patient_name = ?, status = ?, consent_given = ?, updated_at = ? WHERE id = ?',
-    [JSON.stringify(doc), doc.patient.displayName || doc.patient.firstName || doc.patient.lastName || 'Unnamed', doc.status || 'active', doc.consent?.given ? 1 : 0, now(), doc.id]);
+  await exec(env, 'UPDATE cases SET data = ?, patient_name = ?, status = ?, consent_given = ?, site_id = ?, updated_at = ? WHERE id = ?',
+    [JSON.stringify(doc), doc.patient.displayName || doc.patient.firstName || doc.patient.lastName || 'Unnamed', doc.status || 'active', doc.consent?.given ? 1 : 0, doc.siteId ?? 'demo', now(), doc.id]);
   return doc;
 }
 async function audit(env, caseId, action, details = {}, userId = null, before = null, after = null) {
@@ -359,6 +362,51 @@ async function handleApi(request, env, url) {
     return json({ success: true, profile: doc, patient: doc }, 201);
   }
 
+  // -- outcome-linked analytics (site-scoped, audited) --
+  if (path === '/api/analytics/outcomes' && method === 'GET') {
+    const aUser = await getAuthedUser(env, request);
+    if (!aUser) return unauthorized('Login required');
+    const site = url.searchParams.get('site');
+    const aRows = await q(env, 'SELECT data FROM cases WHERE coordinator_id = ? OR id IN (SELECT case_id FROM case_members WHERE user_id = ?)', [aUser.id, aUser.id]);
+    let docs = aRows.map(r => { try { return JSON.parse(r.data); } catch { return null; } }).filter(Boolean);
+    if (site) docs = docs.filter(d => (d.siteId ?? 'demo') === site);
+    const admitted = docs.filter(d => d.admissionDate);
+    const dischargedDocs = docs.filter(d => d.dischargedAt);
+    const sameDay = dischargedDocs.filter(d => d.admissionDate && d.admissionDate.slice(0, 10) === d.dischargedAt.slice(0, 10)).length;
+    const losDays = dischargedDocs.map(d => {
+      const start = new Date(d.admissionDate).getTime();
+      const end = new Date(d.dischargedAt).getTime();
+      return (isNaN(start) || isNaN(end)) ? null : (end - start) / 86400000;
+    }).filter(v => v !== null);
+    const delayByType = {};
+    for (const t of BARRIER_TYPES) {
+      const hrs = docs.flatMap(d => (d.barriers || []).filter(b => b.type === t && b.dueDate)).map(b => {
+        const end = b.resolvedAt ? new Date(b.resolvedAt).getTime() : Date.now();
+        const due = new Date(b.dueDate).getTime();
+        return isNaN(due) ? null : (end - due) / 3600000;
+      }).filter(v => v !== null && v > 0);
+      if (hrs.length) {
+        const sorted = [...hrs].sort((a, b) => a - b);
+        delayByType[t] = { medianDelayHours: Math.round(medianOf(sorted)), p90DelayHours: Math.round(sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.9))]) };
+      }
+    }
+    const resolvedWithDue = docs.flatMap(d => (d.barriers || []).filter(b => b.status === 'RESOLVED' && b.dueDate));
+    const report = {
+      generatedAt: new Date().toISOString(),
+      site: site || 'all',
+      sitesIncluded: [...new Set(docs.map(d => d.siteId ?? 'demo'))],
+      admissions: admitted.length,
+      discharges: dischargedDocs.length,
+      sameDayDischargeRate: dischargedDocs.length ? sameDay / dischargedDocs.length : null,
+      medianLosDays: losDays.length ? Math.round(medianOf(losDays) * 10) / 10 : null,
+      slaComplianceRate: resolvedWithDue.length ? resolvedWithDue.filter(b => !barrierBreached(b)).length / resolvedWithDue.length : null,
+      openBarrierCount: docs.flatMap(d => (d.barriers || []).filter(b => b.status !== 'RESOLVED')).length,
+      topDelayCausingBarrierTypes: Object.entries(delayByType).sort((a, b) => (b[1].medianDelayHours ?? 0) - (a[1].medianDelayHours ?? 0)).slice(0, 3).map(([type, v]) => ({ type, medianDelayHours: v.medianDelayHours, p90DelayHours: v.p90DelayHours })),
+    };
+    await audit(env, null, 'analytics.outcomes', { site: site || 'all' }, aUser.id);
+    return json(report);
+  }
+
   // nested task routes
   const taskMatch = path.match(/^\/api\/(?:care-profiles|patients)\/([^/]+)\/tasks(?:\/([^/]+))?(?:\/(comments|escalate))?$/);
   if (taskMatch) {
@@ -435,13 +483,65 @@ async function handleApi(request, env, url) {
     }
     const discharged = mDocs.filter(d => d.dischargeInstructions?.dischargeDate && d.admissionDate);
     const sameDay = discharged.filter(d => d.admissionDate.slice(0, 10) === d.dischargeInstructions.dischargeDate.slice(0, 10)).length;
+    const site = url.searchParams.get('site');
+    const scoped = site ? mDocs.filter(d => (d.siteId ?? 'demo') === site) : mDocs;
+    const allScoped = scoped.flatMap(d => Array.isArray(d.barriers) ? d.barriers : []);
+    const delayHrsByType = {};
+    for (const t of BARRIER_TYPES) {
+      const hrs = allScoped.filter(b => b.type === t && b.dueDate).map(b => {
+        const end = b.resolvedAt ? new Date(b.resolvedAt).getTime() : Date.now();
+        const due = new Date(b.dueDate).getTime();
+        return isNaN(due) ? null : (end - due) / 3600000;
+      }).filter(v => v !== null && v > 0);
+      if (hrs.length) {
+        const sorted = [...hrs].sort((a, b) => a - b);
+        delayHrsByType[t] = {
+          medianDelayHours: Math.round(medianOf(sorted)),
+          p90DelayHours: Math.round(sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.9))]),
+        };
+      }
+    }
+    const groupRate = (pred) => {
+      const cases = scoped.filter(pred);
+      const dischargedCount = cases.filter(d => d.dischargedAt).length;
+      return { cases: cases.length, discharged: dischargedCount, dischargeRate: cases.length ? dischargedCount / cases.length : null };
+    };
     return json({
+      site: site || 'all',
+      siteIds: [...new Set(mDocs.map(d => d.siteId ?? 'demo'))],
       casesConsidered: discharged.length,
       sameDayDischargeRate: discharged.length ? sameDay / discharged.length : null,
       slaBreachRate: withDue.length ? withDue.filter(barrierBreached).length / withDue.length : null,
-      openBarrierCount: all.filter(b => b.status !== 'RESOLVED').length,
-      medianTimeToResolutionHoursByType: ttrByType
+      openBarrierCount: allScoped.filter(b => b.status !== 'RESOLVED').length,
+      medianTimeToResolutionHoursByType: ttrByType,
+      medianDelayHoursByType: delayHrsByType,
+      dischargeRateByBarrierResolution: {
+        withResolvedBarrier: groupRate(d => (d.barriers || []).some(b => b.status === 'RESOLVED')),
+        withoutResolvedBarrier: groupRate(d => !(d.barriers || []).some(b => b.status === 'RESOLVED')),
+      },
     });
+  }
+
+  // -- outcome recording (human-recorded, never inferred) --
+  if (path.startsWith('/api/cases/') && path.endsWith('/outcomes') && method === 'POST') {
+    const caseId = path.split('/')[3];
+    const user = await getAuthedUser(env, request);
+    if (!user) return unauthorized();
+    if (!(await canAccessCase(env, user, caseId))) return notFound('Care profile not found');
+    const body = await request.json().catch(() => ({}));
+    const doc = await getCaseDoc(env, caseId);
+    if (!doc) return notFound('Care profile not found');
+    const before = { dischargedAt: doc.dischargedAt ?? null, readmission30d: doc.readmission30d ?? null, siteId: doc.siteId ?? 'demo' };
+    if (body.dischargedAt !== undefined) {
+      const d = new Date(body.dischargedAt);
+      if (isNaN(d.getTime())) return badRequest('dischargedAt must be a valid date');
+      doc.dischargedAt = d.toISOString();
+    }
+    if (body.readmission30d !== undefined) doc.readmission30d = body.readmission30d === true;
+    if (body.siteId !== undefined && typeof body.siteId === 'string' && body.siteId.trim()) doc.siteId = body.siteId.trim();
+    await putCaseDoc(env, doc);
+    await audit(env, caseId, 'outcome.record', { fields: Object.keys(body) }, user.id, before, { dischargedAt: doc.dischargedAt ?? null, readmission30d: doc.readmission30d ?? null, siteId: doc.siteId ?? 'demo' });
+    return json({ success: true, outcomes: { dischargedAt: doc.dischargedAt ?? null, readmission30d: doc.readmission30d ?? null, siteId: doc.siteId ?? 'demo' } });
   }
 
   const readinessMatch = path.match(/^\/api\/barriers\/([^/]+)\/readiness$/);

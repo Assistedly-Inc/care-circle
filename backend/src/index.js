@@ -134,6 +134,7 @@ function normalizeCareProfile(input = {}, existing = {}) {
     consent: input.consent ?? existing.consent ?? { given: false, scope: '', givenBy: '', givenAt: null },
     tasks: Array.isArray(input.tasks) ? input.tasks : (existing.tasks || []),
     barriers: Array.isArray(input.barriers) ? input.barriers : (existing.barriers || []),
+    followUps: Array.isArray(input.followUps) ? input.followUps : (existing.followUps || []),
     admissionDate: input.admissionDate ?? existing.admissionDate ?? null,
     dischargedAt: input.dischargedAt ?? existing.dischargedAt ?? null,
     readmission30d: input.readmission30d ?? existing.readmission30d ?? null,
@@ -236,6 +237,33 @@ function normalizeMedication(input = {}, existing = {}) {
     lastVerified: input.lastVerified ?? existing.lastVerified ?? null,
     lastVerifiedBy: input.lastVerifiedBy ?? existing.lastVerifiedBy ?? '',
     verified: Boolean(input.verified ?? existing.verified ?? existing.lastVerified ?? false),
+    createdAt: existing.createdAt || input.createdAt || t,
+    updatedAt: t
+  };
+}
+
+// ── follow-ups (post-discharge scheduled check-ins) ────────────────────────
+const FOLLOWUP_STATUSES = ['SCHEDULED', 'COMPLETED', 'MISSED', 'ESCALATED', 'CANCELLED'];
+const FOLLOWUP_CONTACT_TYPES = ['PHONE', 'SMS', 'IN_APP'];
+const FOLLOWUP_OUTCOMES = ['READMITTED', 'RECOVERING', 'NEEDS_HELP', 'OK'];
+const FOLLOWUP_CADENCE_DAYS = [3, 7, 14, 30];
+
+function normalizeFollowUp(input = {}, existing = {}) {
+  const t = now();
+  const status = FOLLOWUP_STATUSES.includes(input.status ?? existing.status) ? (input.status ?? existing.status) : 'SCHEDULED';
+  const contactType = FOLLOWUP_CONTACT_TYPES.includes(input.contactType ?? existing.contactType) ? (input.contactType ?? existing.contactType) : 'PHONE';
+  let outcome = input.outcome ?? existing.outcome ?? null;
+  if (outcome !== null && !FOLLOWUP_OUTCOMES.includes(outcome)) outcome = null;
+  return {
+    id: existing.id || input.id || uid(),
+    scheduledFor: input.scheduledFor ?? existing.scheduledFor ?? '',
+    status,
+    contactType,
+    notes: input.notes ?? existing.notes ?? '',
+    outcome,
+    escalatedAt: input.escalatedAt ?? existing.escalatedAt ?? null,
+    escalationLevel: Number(input.escalationLevel ?? existing.escalationLevel ?? 0) || 0,
+    completedAt: status === 'COMPLETED' ? (input.completedAt ?? existing.completedAt ?? t) : null,
     createdAt: existing.createdAt || input.createdAt || t,
     updatedAt: t
   };
@@ -610,6 +638,120 @@ async function handleApi(request, env, url) {
       await putCaseDoc(env, doc);
       await audit(env, caseId, 'barrier.comment', { barrierId: doc.barriers[idx].id, commentId: comment.id }, bUser.id);
       return json({ success: true, comment, barrier: doc.barriers[idx], barriers: doc.barriers });
+    }
+  }
+
+  // ── follow-up routes (post-discharge scheduled check-ins) ──
+  // Upcoming follow-ups across cases the user can access
+  if (path === '/api/follow-ups' && method === 'GET') {
+    const fuUser = await getAuthedUser(env, request);
+    if (!fuUser) return unauthorized('Login required');
+    const nowIso = now();
+    const owned = await q(env, 'SELECT id FROM cases WHERE coordinator_id = ?', [fuUser.id]);
+    const memberRows = await q(env, 'SELECT case_id FROM case_members WHERE user_id = ?', [fuUser.id]);
+    const ids = new Set([...owned.map(r => r.id), ...memberRows.map(r => r.case_id)]);
+    const upcoming = [];
+    for (const caseId of ids) {
+      const doc = await getCaseDoc(env, caseId);
+      if (!doc) continue;
+      for (const f of (Array.isArray(doc.followUps) ? doc.followUps : [])) {
+        if (f.status === 'SCHEDULED' && f.scheduledFor && f.scheduledFor >= nowIso) {
+          upcoming.push({ ...f, caseId, patientName: doc.patient?.displayName || [doc.patient?.firstName, doc.patient?.lastName].filter(Boolean).join(' ') || 'Unnamed' });
+        }
+      }
+    }
+    upcoming.sort((a, b) => (a.scheduledFor < b.scheduledFor ? -1 : 1));
+    return json({ followUps: upcoming });
+  }
+
+  // Escalation / completion metrics across user's cases (registered before /:caseId)
+  if (path === '/api/follow-ups/metrics' && method === 'GET') {
+    const fuUser = await getAuthedUser(env, request);
+    if (!fuUser) return unauthorized('Login required');
+    const owned = await q(env, 'SELECT id FROM cases WHERE coordinator_id = ?', [fuUser.id]);
+    const memberRows = await q(env, 'SELECT case_id FROM case_members WHERE user_id = ?', [fuUser.id]);
+    const ids = new Set([...owned.map(r => r.id), ...memberRows.map(r => r.case_id)]);
+    let total = 0, completed = 0, escalated = 0, missed = 0;
+    for (const caseId of ids) {
+      const doc = await getCaseDoc(env, caseId);
+      if (!doc) continue;
+      for (const f of (Array.isArray(doc.followUps) ? doc.followUps : [])) {
+        total++;
+        if (f.status === 'COMPLETED') completed++;
+        if (f.status === 'ESCALATED') escalated++;
+        if (f.status === 'MISSED' && f.scheduledFor && f.scheduledFor < now()) missed++;
+      }
+    }
+    return json({
+      total, completed, escalated, missed,
+      completionRate: total ? Math.round((completed / total) * 100) : 0,
+      escalationRate: total ? Math.round((escalated / total) * 100) : 0
+    });
+  }
+
+  const followUpMatch = path.match(/^\/api\/follow-ups\/([^/]+)(?:\/([^/]+))?(?:\/(escalate))?$/);
+  if (followUpMatch) {
+    const [, caseId, id, action] = followUpMatch;
+    const fuUser = await getAuthedUser(env, request);
+    if (!fuUser) return unauthorized('Login required');
+    if (!(await canAccessCase(env, fuUser, caseId))) return notFound('Care profile not found');
+    const doc = await getCaseDoc(env, caseId);
+    if (!doc) return notFound('Care profile not found');
+    doc.followUps = Array.isArray(doc.followUps) ? doc.followUps.map(f => normalizeFollowUp(f)) : [];
+
+    // List follow-ups for a case
+    if (!id && method === 'GET') return json({ followUps: doc.followUps });
+    // Create: single follow-up, or auto-cadence (+3/+7/+14/+30 days from discharge)
+    if (!id && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      if (body.auto !== true && !body.scheduledFor) return badRequest('scheduledFor is required (or set auto=true for the discharge cadence)');
+      const base = body.baseDate || doc.dischargeInstructions?.dischargeDate || doc.dischargedAt || now();
+      const created = [];
+      if (body.auto === true) {
+        for (const days of FOLLOWUP_CADENCE_DAYS) {
+          const scheduledFor = new Date(new Date(base).getTime() + days * 86400000).toISOString();
+          const dup = doc.followUps.find(f => f.scheduledFor && f.scheduledFor.slice(0, 10) === scheduledFor.slice(0, 10));
+          if (dup) continue;
+          const f = normalizeFollowUp({ scheduledFor, contactType: body.contactType || 'PHONE' });
+          doc.followUps.push(f); created.push(f);
+        }
+      } else {
+        const f = normalizeFollowUp(body);
+        doc.followUps.push(f); created.push(f);
+      }
+      await putCaseDoc(env, doc);
+      await audit(env, caseId, 'followUp.create', { count: created.length }, fuUser.id);
+      return json({ success: true, followUps: created }, 201);
+    }
+
+    const idx = doc.followUps.findIndex(f => f.id === id);
+    if (idx < 0) return notFound('Follow-up not found');
+    if (!action && (method === 'PUT' || method === 'PATCH')) {
+      const body = await request.json().catch(() => ({}));
+      const next = normalizeFollowUp(body, doc.followUps[idx]);
+      if (next.status === 'ESCALATED') { next.escalatedAt = next.escalatedAt || now(); next.escalationLevel = Math.max(next.escalationLevel, 1); }
+      if (next.escalationLevel > 0) next.escalatedAt = next.escalatedAt || now();
+      doc.followUps[idx] = next;
+      await putCaseDoc(env, doc);
+      await audit(env, caseId, 'followUp.update', { followUpId: id, fields: Object.keys(body) }, fuUser.id);
+      return json({ success: true, followUp: doc.followUps[idx], followUps: doc.followUps });
+    }
+    if (!action && method === 'DELETE') {
+      const [removed] = doc.followUps.splice(idx, 1);
+      await putCaseDoc(env, doc);
+      await audit(env, caseId, 'followUp.delete', { followUpId: id }, fuUser.id);
+      return json({ success: true, followUp: removed, followUps: doc.followUps });
+    }
+    if (action === 'escalate' && (method === 'POST' || method === 'PATCH')) {
+      const current = doc.followUps[idx];
+      doc.followUps[idx] = normalizeFollowUp({
+        status: current.status === 'COMPLETED' ? 'COMPLETED' : 'ESCALATED',
+        escalationLevel: (Number(current.escalationLevel) || 0) + 1,
+        escalatedAt: now()
+      }, current);
+      await putCaseDoc(env, doc);
+      await audit(env, caseId, 'followUp.escalate', { followUpId: id, level: doc.followUps[idx].escalationLevel }, fuUser.id);
+      return json({ success: true, followUp: doc.followUps[idx], followUps: doc.followUps });
     }
   }
 

@@ -241,3 +241,49 @@ export const remindersApi = {
     escalationLevel: number;
   }>>('/api/reminders'),
 };
+
+export interface FollowUp {
+  id: string;
+  caseId: string;
+  scheduledFor: string;
+  completedAt?: string | null;
+  status: string;
+  contactType: string;
+  notes?: string | null;
+  outcome?: string | null;
+  escalatedAt?: string | null;
+  escalationLevel: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FollowUpMetrics {
+  total: number;
+  completed: number;
+  escalated: number;
+  missed: number;
+  completionRate: number;
+  escalationRate: number;
+}
+
+export const followUpsApi = {
+  // NOTE: aligned to the LIVE worker (src/index.js) response shapes:
+  // list/schedule return { followUps: [...] }, update returns { followUp }.
+  list: async (caseId: string): Promise<FollowUp[]> =>
+    (await api<{ followUps: FollowUp[] }>(`/api/follow-ups/${caseId}`)).followUps,
+  schedule: async (caseId: string): Promise<FollowUp[]> =>
+    (
+      await api<{ success: boolean; followUps: FollowUp[] }>(`/api/follow-ups/${caseId}`, {
+        method: 'POST',
+        body: JSON.stringify({ auto: true }),
+      })
+    ).followUps,
+  update: async (caseId: string, id: string, data: Partial<Pick<FollowUp, 'status' | 'outcome' | 'notes' | 'contactType' | 'escalationLevel'>>): Promise<FollowUp> =>
+    (
+      await api<{ success: boolean; followUp: FollowUp }>(`/api/follow-ups/${caseId}/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      })
+    ).followUp,
+  metrics: () => api<FollowUpMetrics>('/api/follow-ups/metrics'),
+};

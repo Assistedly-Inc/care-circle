@@ -59,6 +59,7 @@ interface DemoBarrierCase {
   patient: { displayName: string };
   admissionAt?: string;
   dischargeAt?: string;
+  updatedAt: string;
   barriers: DemoBarrier[];
 }
 
@@ -85,6 +86,7 @@ function toCaseView(c: CareCase): DemoBarrierCase {
     patient: { displayName: c.patientName },
     admissionAt: c.admissionAt || undefined,
     dischargeAt: c.dischargeAt || undefined,
+    updatedAt: c.updatedAt,
     barriers: [],
   };
 }
@@ -128,9 +130,15 @@ export default function BarriersDemoPage() {
       try {
         const [list, metrics] = await Promise.all([casesApi.list(), barriersApi.metrics()]);
         if (cancelled) return;
-        setCases(list.map(toCaseView));
+        const views = list.map(toCaseView);
+        setCases(views);
         setApiMetrics(metrics);
         setError(null);
+        if (views.length > 0) {
+          const latest = views.slice().sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt))[0];
+          setSelected(latest.id);
+          loadBarriers(latest.id).catch(e => setError(e instanceof Error ? e.message : 'Failed to load barriers'));
+        }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load barriers');
       } finally {

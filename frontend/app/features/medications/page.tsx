@@ -70,8 +70,14 @@ export default function MedicationsDemoPage() {
       try {
         const list = await casesApi.list();
         if (cancelled) return;
-        setProfiles(list.map(toCaseView));
+        const views = list.map(toCaseView);
+        setProfiles(views);
         setError(null);
+        if (views.length > 0) {
+          const latest = views.slice().sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt))[0];
+          setSelectedProfile(latest.id);
+          refreshMeds(latest.id).catch(e => setError(e instanceof Error ? e.message : 'Failed to load medications'));
+        }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load cases');
       } finally {

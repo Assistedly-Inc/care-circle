@@ -63,7 +63,7 @@ export default function AuthFeaturePage() {
           The right information, for the right people, at the right time
         </h1>
         <p className="text-[var(--color-text-light)] max-w-2xl leading-relaxed mb-10">
-          Care Circle is built on a simple promise: everyone in your circle — relatives, caregivers, and care coordinators — gets exactly the information they need, and nothing they don&apos;t. Privacy isn&apos;t a feature bolted on at the end; it&apos;s how the product works.
+          Assistedly Cares is built on a simple promise: everyone in your circle — relatives, caregivers, and care coordinators — gets exactly the information they need, and nothing they don&apos;t. Privacy isn&apos;t a feature bolted on at the end; it&apos;s how the product works.
         </p>
 
         <SignInCard />
@@ -94,7 +94,7 @@ export default function AuthFeaturePage() {
         <section className="card !p-6 md:!p-8 mb-6">
           <h2 className="text-lg font-extrabold text-[var(--color-text)] mb-3">Built for caregiver privacy from day one</h2>
           <p className="text-sm text-[var(--color-text-light)] leading-relaxed">
-            Sharing health information with family shouldn&apos;t mean sharing it with everyone. Care Circle uses invite-only circles, so a person sees information only after they&apos;ve been invited — and access can be changed as care changes.
+            Sharing health information with family shouldn&apos;t mean sharing it with everyone. Assistedly Cares uses invite-only circles, so a person sees information only after they&apos;ve been invited — and access can be changed as care changes.
           </p>
         </section>
 

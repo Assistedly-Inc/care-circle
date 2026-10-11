@@ -10,7 +10,7 @@ const features = [
 ];
 
 const weekByWeek = [
-  { n: 'Before Discharge', items: ['Review medications with the discharge planner', 'Confirm follow-up appointments', 'Add emergency contacts to Care Circle', 'Invite caregivers and family to the plan'] },
+  { n: 'Before Discharge', items: ['Review medications with the discharge planner', 'Confirm follow-up appointments', 'Add emergency contacts to Assistedly Cares', 'Invite caregivers and family to the plan'] },
   { n: 'Week 1', items: ['Daily medication check-ins', 'Log meals, mood, and mobility observations', 'Attend follow-up appointments', 'Keep the facility in the loop'] },
   { n: 'Weeks 2-4', items: ['Review progress and adjust the care plan', 'Export notes for the primary care visit', 'Celebrate small wins with the circle'] },
 ];
@@ -57,7 +57,7 @@ export default function FamilyPage() {
                 Be the quarterback your loved one needs
               </h1>
               <p className="text-base text-white/90 max-w-xl leading-relaxed mb-6 drop-shadow-sm">
-                The discharge planner hands you a folder. Now what? Care Circle turns that folder into a shared living plan that keeps everyone connected through the first 30 days.
+                The discharge planner hands you a folder. Now what? Assistedly Cares turns that folder into a shared living plan that keeps everyone connected through the first 30 days.
               </p>
               <Link href="/features/cases/" className="btn btn-primary btn-lg shadow-md">
                 Start a Care Plan

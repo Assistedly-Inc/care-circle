@@ -66,7 +66,7 @@ export default function PatientPage() {
               <blockquote className="text-[clamp(1.1rem,2.2vw,1.5rem)] font-extrabold text-white leading-snug drop-shadow-md mb-3">
                 &ldquo;Coming home from skilled nursing felt manageable for the first time. Everything — my meds, my exercises, my appointments — was right there. My daughter saw it too.&rdquo;
               </blockquote>
-              <p className="text-white/90 font-semibold drop-shadow-sm">— Care Circle patient, age 72</p>
+              <p className="text-white/90 font-semibold drop-shadow-sm">— Assistedly Cares patient, age 72</p>
             </div>
           </div>
         </div>

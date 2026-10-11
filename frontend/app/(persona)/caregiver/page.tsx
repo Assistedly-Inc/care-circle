@@ -30,7 +30,7 @@ export default function CaregiverPage() {
                 Stay connected to the plan
               </h1>
               <p className="text-base text-white/90 max-w-xl leading-relaxed mb-6 drop-shadow-sm">
-                The family sets the care plan. You make it happen. Care Circle keeps you in sync with medications, daily tasks, and observations through the first 30 days.
+                The family sets the care plan. You make it happen. Assistedly Cares keeps you in sync with medications, daily tasks, and observations through the first 30 days.
               </p>
               <Link href="/features/tasks/" className="btn btn-primary btn-lg shadow-md">
                 View Your Tasks
@@ -66,7 +66,7 @@ export default function CaregiverPage() {
               <blockquote className="text-[clamp(1.1rem,2.2vw,1.5rem)] font-extrabold text-white leading-snug drop-shadow-md mb-3">
                 &ldquo;I used to write everything on paper. Now the family sees my notes in real time, and we&apos;re all on the same page.&rdquo;
               </blockquote>
-              <p className="text-white/90 font-semibold drop-shadow-sm">— Home care aide, 4 years with Care Circle</p>
+              <p className="text-white/90 font-semibold drop-shadow-sm">— Home care aide, 4 years with Assistedly Cares</p>
             </div>
           </div>
         </div>

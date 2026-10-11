@@ -34,7 +34,7 @@ export default function Footer() {
               <span className="flex items-center justify-center w-9 h-9 rounded-full bg-white border-2 border-[var(--color-accent)] text-[var(--color-accent)]">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3z"/></svg>
               </span>
-              <span className="font-extrabold text-sm text-[var(--color-secondary)] tracking-tight">Care Circle</span>
+              <span className="font-extrabold text-sm text-[var(--color-secondary)] tracking-tight">Assistedly Cares</span>
             </Link>
             <p className="text-sm text-[var(--color-text-light)] leading-relaxed max-w-xs">
               Care coordination for the first 30 days after discharge. Built for families and facilities.
@@ -88,7 +88,7 @@ export default function Footer() {
         </div>
 
         <div className="mt-10 pt-6 border-t border-[var(--color-border)] flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="text-xs text-[var(--color-muted)]">&copy; {new Date().getFullYear()} Care Circle. All rights reserved.</p>
+          <p className="text-xs text-[var(--color-muted)]">&copy; {new Date().getFullYear()} Assistedly Cares. All rights reserved.</p>
           <p className="text-xs text-[var(--color-muted)]">HIPAA-aware. Built for care transitions.</p>
         </div>
       </div>

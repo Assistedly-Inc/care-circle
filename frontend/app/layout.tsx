@@ -5,22 +5,22 @@ import Footer from './Footer';
 
 export const metadata: Metadata = {
   title: {
-    default: 'Care Circle | Coordinated Care Platform',
-    template: '%s | Care Circle',
+    default: 'Assistedly Cares | Coordinated Care Platform',
+    template: '%s | Assistedly Cares',
   },
-  description: 'Care Circle helps families, caregivers, and healthcare professionals coordinate around shared care transitions. Private, secure, and beautifully simple.',
+  description: 'Assistedly Cares helps families, caregivers, and healthcare professionals coordinate around shared care transitions. Private, secure, and beautifully simple.',
   keywords: [
     'care coordination',
     'care transition',
     'post discharge',
     'family caregiving',
     'healthcare management',
-    'care circle',
+    'assistedly cares',
     'caregiver tools',
   ],
   openGraph: {
-    title: 'Care Circle | Coordinated Care Platform',
-    description: 'Care Circle helps families and facilities coordinate care transitions after discharge.',
+    title: 'Assistedly Cares | Coordinated Care Platform',
+    description: 'Assistedly Cares helps families and facilities coordinate care transitions after discharge.',
     type: 'website',
   },
 };

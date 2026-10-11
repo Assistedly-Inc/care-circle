@@ -36,13 +36,13 @@ export default function HomePage() {
                 <svg className="w-4 h-4 text-white/90" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
                 </svg>
-                <span className="text-xs font-bold uppercase tracking-[0.1em] text-white/90">Care Circle</span>
+                <span className="text-xs font-bold uppercase tracking-[0.1em] text-white/90">Assistedly Cares</span>
               </div>
               <h1 className="text-[clamp(1.6rem,3.5vw,2.4rem)] font-extrabold text-[#2D2926] mb-2 tracking-tight leading-tight drop-shadow-sm">
                 The first 30 days home are the most important
               </h1>
               <p className="text-base text-[#2D2926]/90 max-w-xl mb-5 leading-relaxed drop-shadow-sm">
-                Care Circle helps families and facilities bridge the gap between discharge and recovery — with shared care plans, medication tracking, and coordinated daily support.
+                Assistedly Cares helps families and facilities bridge the gap between discharge and recovery — with shared care plans, medication tracking, and coordinated daily support.
               </p>
               <div className="flex flex-wrap items-center gap-3">
                 <Link href="/features/cases/" className="btn btn-primary btn-lg shadow-md">

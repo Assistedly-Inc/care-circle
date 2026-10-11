@@ -64,7 +64,7 @@ export default function ProfessionalPage() {
         <div className="container">
           <div className="text-center mb-10">
             <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--color-accent)] mb-2">Impact</p>
-            <h2 className="text-2xl font-extrabold text-[var(--color-text)] tracking-tight">What facilities gain with Care Circle</h2>
+            <h2 className="text-2xl font-extrabold text-[var(--color-text)] tracking-tight">What facilities gain with Assistedly Cares</h2>
           </div>
           <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {[
@@ -101,7 +101,7 @@ export default function ProfessionalPage() {
         <div className="card !p-10 md:!p-12 text-center max-w-3xl mx-auto bg-[linear-gradient(135deg,#f4fbf8_0%,#f7fafc_100%)] border border-[#dcefe7]">
           <h2 className="text-2xl font-extrabold text-[var(--color-text)] mb-4">Ready to modernize your discharge process?</h2>
           <p className="text-[var(--color-text-light)] max-w-md mx-auto mb-8 leading-relaxed">
-            Join facilities that are using Care Circle to improve outcomes, reduce readmissions, and raise family satisfaction.
+            Join facilities that are using Assistedly Cares to improve outcomes, reduce readmissions, and raise family satisfaction.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4">
             <Link href="/features/cases/" className="btn btn-primary">Start a Care Plan</Link>

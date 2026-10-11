@@ -73,7 +73,7 @@ export default function HomePage() {
               </div>
             </div>
             <div className="relative rounded-[var(--radius-lg)] overflow-hidden shadow-md">
-              <img src="/images/bath-safety.jpg" alt="Safe bathroom for elderly home care" loading="lazy" decoding="async" fetchPriority="low" width={1200} height={800} className="w-full h-full object-cover" />
+              <img src="/images/home-visit.jpg" alt="Care professional checking in on an elderly man recovering at home" loading="lazy" decoding="async" fetchPriority="low" width={1800} height={1200} className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-[var(--color-primary)]/10" />
             </div>
           </div>

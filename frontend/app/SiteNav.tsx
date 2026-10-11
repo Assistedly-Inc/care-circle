@@ -17,6 +17,7 @@ const featureLinks = [
   { href: '/features/tasks/', label: 'Tasks' },
   { href: '/features/health/', label: 'Health' },
   { href: '/features/notifications/', label: 'Reminders' },
+  { href: '/features/follow-ups/', label: 'Follow-Ups' },
   { href: '/features/export/', label: 'Export' },
   { href: '/features/audit/', label: 'Compliance' },
 ];

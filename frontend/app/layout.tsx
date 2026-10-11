@@ -22,6 +22,14 @@ export const metadata: Metadata = {
     title: 'Assistedly Cares | Coordinated Care Platform',
     description: 'Assistedly Cares helps families and facilities coordinate care transitions after discharge.',
     type: 'website',
+    url: 'https://assistedly.ai/',
+    images: [{ url: 'https://assistedly.ai/images/family-generations.jpg', width: 1600, height: 1067, alt: 'Multigenerational family caring for a loved one at home' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Assistedly Cares | Coordinated Care Platform',
+    description: 'Assistedly Cares helps families and facilities coordinate care transitions after discharge.',
+    images: ['https://assistedly.ai/images/family-generations.jpg'],
   },
 };
 

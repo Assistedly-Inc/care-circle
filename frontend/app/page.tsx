@@ -18,17 +18,9 @@ export default function HomePage() {
     <div className="pb-16">
       {/* ─── Hero: Discharge is the beginning ─── */}
       <section className="relative w-full overflow-hidden">
-        <div className="relative h-[clamp(260px,32vw,360px)] bg-[#FDF9F3]">
-          {/* Pastel blobs */}
-          <div className="hero-pastels">
-            <div className="pastel-blob blob-1" aria-hidden="true"></div>
-            <div className="pastel-blob blob-2" aria-hidden="true"></div>
-            <div className="pastel-blob blob-3" aria-hidden="true"></div>
-            <div className="pastel-blob blob-4" aria-hidden="true"></div>
-            <div className="pastel-blob blob-5" aria-hidden="true"></div>
-          </div>
-          
-          <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.72)_0%,rgba(0,0,0,0.35)_50%,rgba(0,0,0,0.12)_100%)]" />
+        <div className="relative h-[clamp(300px,38vw,440px)]">
+          <img src="/images/family-generations.jpg" alt="Multigenerational family caring for a loved one at home" fetchPriority="high" className="absolute inset-0 w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.78)_0%,rgba(0,0,0,0.45)_50%,rgba(0,0,0,0.18)_100%)]" />
           
           <div className="container relative h-full flex flex-col items-start justify-end pb-10 md:pb-14">
             <div className="max-w-2xl">
@@ -38,10 +30,10 @@ export default function HomePage() {
                 </svg>
                 <span className="text-xs font-bold uppercase tracking-[0.1em] text-white/90">Assistedly Cares</span>
               </div>
-              <h1 className="text-[clamp(1.6rem,3.5vw,2.4rem)] font-extrabold text-[#2D2926] mb-2 tracking-tight leading-tight drop-shadow-sm">
+              <h1 className="text-[clamp(1.6rem,3.5vw,2.4rem)] font-extrabold text-white mb-2 tracking-tight leading-tight drop-shadow-md">
                 The first 30 days home are the most important
               </h1>
-              <p className="text-base text-[#2D2926]/90 max-w-xl mb-5 leading-relaxed drop-shadow-sm">
+              <p className="text-base text-white/90 max-w-xl mb-5 leading-relaxed drop-shadow-md">
                 Assistedly Cares helps families and facilities bridge the gap between discharge and recovery — with shared care plans, medication tracking, and coordinated daily support.
               </p>
               <div className="flex flex-wrap items-center gap-3">

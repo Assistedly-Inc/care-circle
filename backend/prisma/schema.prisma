@@ -48,6 +48,7 @@ model Case {
   admissionAt      DateTime?
   dischargeAt      DateTime?
   barriers         Barrier[]
+  followUps        FollowUp[]
 
   @@index([coordinatorId])
 }
@@ -186,4 +187,23 @@ model BarrierNote {
   author    User     @relation(fields: [authorId], references: [id])
 
   @@index([barrierId])
+}
+
+model FollowUp {
+  id              String    @id @default(uuid())
+  caseId          String
+  scheduledFor    DateTime
+  completedAt     DateTime?
+  status          String    @default("SCHEDULED") // SCHEDULED | COMPLETED | MISSED | ESCALATED | CANCELLED
+  contactType     String    @default("PHONE")     // PHONE | SMS | IN_APP
+  notes           String?
+  outcome         String?   // READMITTED | RECOVERING | NEEDS_HELP | OK
+  escalatedAt     DateTime?
+  escalationLevel Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  case            Case      @relation(fields: [caseId], references: [id])
+
+  @@index([caseId, status])
+  @@index([scheduledFor])
 }

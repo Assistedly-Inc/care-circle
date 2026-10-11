@@ -62,6 +62,18 @@ export const auth = {
     return res;
   },
   me: () => api<{ user: unknown }>('/api/auth/me'),
+  passwordlessSignIn: async (email: string) => {
+    const link = await api<{ token: string; expiresIn: number }>('/api/auth/passwordless/request', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+    const session = await api<{ token: string; expiresIn: number; user: { id: string; email: string; name: string } }>(
+      '/api/auth/passwordless/verify',
+      { method: 'POST', body: JSON.stringify({ token: link.token }) }
+    );
+    setToken(session.token);
+    return session;
+  },
 };
 
 export const cases = {

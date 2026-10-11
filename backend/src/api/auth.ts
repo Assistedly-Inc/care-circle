@@ -80,4 +80,67 @@ router.get('/me', requireAuth, async (req: AuthRequest, res) => {
   res.json({ user: req.user });
 });
 
+// POST /api/auth/passwordless/request - passwordless sign-in for an existing account.
+// Dev mode returns the one-time token in the response so the client can complete
+// sign-in immediately; with a mailer configured this would email a sign-in link instead.
+router.post('/passwordless/request', async (req, res) => {
+  try {
+    const { email } = req.body ?? {};
+    if (typeof email !== 'string' || !email.trim()) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+    if (!config.jwtSecret) {
+      return res.status(500).json({ error: 'Server misconfiguration: JWT_SECRET is not set' });
+    }
+    const user = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
+    if (!user) return res.status(404).json({ error: 'No account found for that email' });
+    const linkToken = jwt.sign(
+      { sub: user.id, role: 'USER', email: user.email, purpose: 'passwordless' },
+      config.jwtSecret,
+      { expiresIn: 600, issuer: 'carecircle', audience: 'carecircle-api' }
+    );
+    return res.json({
+      ok: true,
+      token: linkToken,
+      expiresIn: 600,
+      user: { id: user.id, email: user.email, name: user.name },
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to send sign-in link' });
+  }
+});
+
+// POST /api/auth/passwordless/verify - exchange the one-time link token for a session token
+router.post('/passwordless/verify', async (req, res) => {
+  try {
+    const { token } = req.body ?? {};
+    if (typeof token !== 'string' || !token) {
+      return res.status(400).json({ error: 'Token is required' });
+    }
+    const payload = jwt.verify(token, config.jwtSecret) as {
+      sub: string;
+      email: string;
+      role?: string;
+      purpose?: string;
+    };
+    if (payload.purpose !== 'passwordless' || !payload.sub) {
+      return res.status(400).json({ error: 'Invalid sign-in token' });
+    }
+    const user = await prisma.user.findUnique({ where: { id: payload.sub } });
+    if (!user) return res.status(401).json({ error: 'User not found' });
+    const sessionToken = jwt.sign(
+      { sub: user.id, role: 'USER', email: user.email },
+      config.jwtSecret,
+      { expiresIn: 43200, issuer: 'carecircle', audience: 'carecircle-api' }
+    );
+    return res.json({
+      token: sessionToken,
+      expiresIn: 43200,
+      user: { id: user.id, email: user.email, name: user.name },
+    });
+  } catch {
+    return res.status(401).json({ error: 'Invalid or expired sign-in token' });
+  }
+});
+
 export default router;

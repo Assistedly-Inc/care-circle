@@ -1,6 +1,59 @@
 'use client';
 
+'use client';
+
+import { useState } from 'react';
 import Link from 'next/link';
+import { auth } from '@/lib/api';
+
+function SignInCard() {
+  const [email, setEmail] = useState('');
+  const [status, setStatus] = useState<'idle' | 'sending' | 'done' | 'error'>('idle');
+  const [message, setMessage] = useState('');
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email.trim()) return;
+    setStatus('sending');
+    setMessage('');
+    try {
+      const session = await auth.passwordlessSignIn(email.trim());
+      setStatus('done');
+      setMessage(`Signed in as ${session.user.email}${session.user.name ? ` (${session.user.name})` : ''}. Your session lasts 12 hours — open a feature page to get started.`);
+    } catch (err) {
+      setStatus('error');
+      setMessage(err instanceof Error ? err.message : 'Sign-in failed');
+    }
+  }
+
+  return (
+    <section className="card !p-6 md:!p-8 mb-6 border border-[var(--color-accent)]/30">
+      <h2 className="text-lg font-extrabold text-[var(--color-text)] mb-2">Passwordless sign-in</h2>
+      <p className="text-sm text-[var(--color-text-light)] leading-relaxed mb-4">
+        Enter the email on your care-circle account and sign in with a link — no password needed.
+      </p>
+      <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3 max-w-lg">
+        <input
+          required
+          type="email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          placeholder="you@example.com"
+          className="field flex-1"
+        />
+        <button type="submit" disabled={status === 'sending'} className="btn btn-primary text-sm">
+          {status === 'sending' ? 'Sending…' : 'Sign in with email'}
+        </button>
+      </form>
+      {status === 'done' && (
+        <p className="mt-3 text-xs font-semibold text-[#065f46] bg-[#d1fae5] px-3 py-2 rounded-md inline-block">✓ {message}</p>
+      )}
+      {status === 'error' && (
+        <p className="mt-3 text-xs font-semibold text-[#991b1b] bg-[#fef2f2] px-3 py-2 rounded-md inline-block">{message}</p>
+      )}
+    </section>
+  );
+}
 
 export default function AuthFeaturePage() {
   return (
@@ -12,6 +65,8 @@ export default function AuthFeaturePage() {
         <p className="text-[var(--color-text-light)] max-w-2xl leading-relaxed mb-10">
           Care Circle is built on a simple promise: everyone in your circle — relatives, caregivers, and care coordinators — gets exactly the information they need, and nothing they don&apos;t. Privacy isn&apos;t a feature bolted on at the end; it&apos;s how the product works.
         </p>
+
+        <SignInCard />
 
         {/* Role-based access */}
         <section className="card !p-6 md:!p-8 mb-6">

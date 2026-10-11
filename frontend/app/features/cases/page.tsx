@@ -101,7 +101,7 @@ export default function CasesDemoPage() {
           </p>
           {!showForm && !submitted && (
             <button onClick={() => setShowForm(true)} className="btn btn-primary btn-lg">
-              Create a Care Plan
+              Start a Care Plan
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
             </button>
           )}
@@ -118,7 +118,7 @@ export default function CasesDemoPage() {
       {showForm && (
         <div className="container mt-8">
           <div className="card !p-6 md:!p-8 max-w-2xl mx-auto border border-[var(--color-accent)]/20">
-            <h2 className="text-lg font-extrabold text-[var(--color-text)] mb-1">Start a Care Transition</h2>
+            <h2 className="text-lg font-extrabold text-[var(--color-text)] mb-1">Start a Care Plan</h2>
             <p className="text-sm text-[var(--color-text-light)] mb-6">Fill in your details and a care plan will be created. A specialist will reach out to help you set up the real thing.</p>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid sm:grid-cols-2 gap-4">

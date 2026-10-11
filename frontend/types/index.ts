@@ -60,6 +60,8 @@ export interface CareCase {
   medications: Medication[];
   tasks: Task[];
   consentGiven: boolean;
+  admissionAt?: string;
+  dischargeAt?: string;
 }
 
 export interface EmergencyContact {

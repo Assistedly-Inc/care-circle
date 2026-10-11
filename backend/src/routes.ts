@@ -6,6 +6,7 @@ import taskRouter from './api/tasks';
 import barrierRouter from './api/barriers';
 import exportRouter from './api/export';
 import healthRouter from './api/health';
+import reminderRouter from './api/reminders';
 // Swagger UI disabled for MVP preview
 // import swaggerUi from 'swagger-ui-express';
 // import swaggerDocument from '../swagger.yaml';
@@ -19,6 +20,7 @@ router.use('/tasks', taskRouter);
 router.use('/barriers', barrierRouter);
 router.use('/export', exportRouter);
 router.use('/health', healthRouter);
+router.use('/reminders', reminderRouter);
 // router.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 export default router;

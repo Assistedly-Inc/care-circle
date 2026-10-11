@@ -82,7 +82,7 @@ export default function Footer() {
               ))}
             </ul>
             <Link href="/features/cases/" className="btn btn-primary text-sm !py-2 !px-4 inline-flex">
-              Start a Transition
+              Start a Care Plan
             </Link>
           </div>
         </div>

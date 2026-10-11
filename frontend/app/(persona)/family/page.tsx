@@ -60,7 +60,7 @@ export default function FamilyPage() {
                 The discharge planner hands you a folder. Now what? Care Circle turns that folder into a shared living plan that keeps everyone connected through the first 30 days.
               </p>
               <Link href="/features/cases/" className="btn btn-primary btn-lg shadow-md">
-                Start a Transition Plan
+                Start a Care Plan
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
               </Link>
             </div>

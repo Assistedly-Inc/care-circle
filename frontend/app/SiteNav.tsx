@@ -97,7 +97,7 @@ export default function SiteNav() {
 
         {/* CTA */}
         <Link href="/features/cases/" className="hidden md:inline-flex btn btn-primary !py-2 !px-4 text-sm whitespace-nowrap">
-          Start a Transition
+          Start a Care Plan
         </Link>
 
         {/* Mobile hamburger */}
@@ -165,7 +165,7 @@ export default function SiteNav() {
             </div>
             <div className="pt-1">
               <Link href="/features/cases/" onClick={() => setMobileOpen(false)} className="btn btn-primary w-full justify-center !py-3">
-                Start a Transition
+                Start a Care Plan
               </Link>
             </div>
           </div>

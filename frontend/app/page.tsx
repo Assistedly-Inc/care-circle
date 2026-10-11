@@ -46,7 +46,7 @@ export default function HomePage() {
               </p>
               <div className="flex flex-wrap items-center gap-3">
                 <Link href="/features/cases/" className="btn btn-primary btn-lg shadow-md">
-                  Start a Care Transition
+                  Start a Care Plan
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
                 </Link>
               </div>
@@ -223,7 +223,7 @@ export default function HomePage() {
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4">
             <Link href="/features/cases/" className="btn btn-primary btn-lg">
-              Start a Transition
+              Start a Care Plan
             </Link>
 
           </div>

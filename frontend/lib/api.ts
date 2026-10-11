@@ -228,3 +228,16 @@ export const exportApi = {
 export const health = {
   check: () => api<{ status: string; kv: boolean; service: string }>('/api/health'),
 };
+export const remindersApi = {
+  list: () => api<Array<{
+    id: string;
+    title: string;
+    type: string;
+    time: string;
+    status: string;
+    caseId: string;
+    patientName: string;
+    ownerName: string | null;
+    escalationLevel: number;
+  }>>('/api/reminders'),
+};

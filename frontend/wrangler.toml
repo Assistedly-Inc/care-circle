@@ -1,8 +1,15 @@
 name = "care-circle"
 compatibility_date = "2024-01-01"
-pages_build_output_dir = "out"
 
 routes = [
-  # Custom domain at apex (creates DNS automatically when deployed with a zone-edit token)
+  # Custom domain at apex — provisioned automatically by `wrangler deploy`
+  # (creates the Workers custom domain AND the DNS record for the zone).
   { pattern = "assistedly.ai", custom_domain = true, zone_id = "70904cb60620dcfb62f49cccbfe72959" },
 ]
+
+# Serve the Next.js static export (`npm run build` -> out/) as Workers static assets.
+# This replaced the old "CareCircle MVP Dashboard" worker (same name) and the Pages
+# config that previously rejected the `routes` block.
+[assets]
+directory = "out"
+not_found_handling = "404-page"

@@ -4,6 +4,10 @@ import SiteNav from './SiteNav';
 import Footer from './Footer';
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://assistedly.ai'),
+  alternates: {
+    canonical: '/',
+  },
   title: {
     default: 'Assistedly Cares | Coordinated Care Platform',
     template: '%s | Assistedly Cares',
@@ -23,14 +27,43 @@ export const metadata: Metadata = {
     description: 'Assistedly Cares helps families and facilities coordinate care transitions after discharge.',
     type: 'website',
     url: 'https://assistedly.ai/',
-    images: [{ url: 'https://assistedly.ai/images/family-generations.jpg', width: 1600, height: 1067, alt: 'Multigenerational family caring for a loved one at home' }],
+    siteName: 'Assistedly Cares',
+    images: [
+      {
+        url: '/images/og-hero.jpg',
+        width: 1200,
+        height: 630,
+        alt: 'Adult son in a supportive conversation with his elderly father at home',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Assistedly Cares | Coordinated Care Platform',
     description: 'Assistedly Cares helps families and facilities coordinate care transitions after discharge.',
-    images: ['https://assistedly.ai/images/family-generations.jpg'],
+    images: ['/images/og-hero.jpg'],
   },
+  robots: {
+    index: true,
+    follow: true,
+  },
+};
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      name: 'Assistedly Cares',
+      url: 'https://assistedly.ai/',
+      sameAs: [],
+    },
+    {
+      '@type': 'WebSite',
+      name: 'Assistedly Cares',
+      url: 'https://assistedly.ai/',
+    },
+  ],
 };
 
 export default function RootLayout({
@@ -41,6 +74,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased flex flex-col min-h-screen">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
         <SiteNav />
         <main id="main-content" className="flex-1">
           {children}

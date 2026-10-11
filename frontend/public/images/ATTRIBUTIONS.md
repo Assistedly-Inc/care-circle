@@ -13,3 +13,5 @@ All photos are sourced from Unsplash under their license (free for commercial us
 - happy-family-2.jpg — Unsplash
 - hands-support.jpg — Unsplash
 - community.jpg — Unsplash
+- hero-family-care.jpg — Unsplash, photo by The Ridge Ohio
+- og-hero.jpg — Unsplash, photo by The Ridge Ohio

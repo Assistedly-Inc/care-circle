@@ -19,7 +19,7 @@ export default function HomePage() {
       {/* ─── Hero: Discharge is the beginning ─── */}
       <section className="relative w-full overflow-hidden">
         <div className="relative h-[clamp(300px,38vw,440px)]">
-          <img src="/images/family-generations.jpg" alt="Multigenerational family caring for a loved one at home" fetchPriority="high" className="absolute inset-0 w-full h-full object-cover" />
+          <img src="/images/hero-family-care.jpg" alt="Adult son in a supportive conversation with his elderly father at home" fetchPriority="high" width={2400} height={900} className="absolute inset-0 w-full h-full object-cover" />
           <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.78)_0%,rgba(0,0,0,0.45)_50%,rgba(0,0,0,0.18)_100%)]" />
           
           <div className="container relative h-full flex flex-col items-start justify-end pb-10 md:pb-14">
@@ -73,7 +73,7 @@ export default function HomePage() {
               </div>
             </div>
             <div className="relative rounded-[var(--radius-lg)] overflow-hidden shadow-md">
-              <img src="/images/bath-safety.jpg" alt="Safe bathroom for elderly home care" className="w-full h-full object-cover" />
+              <img src="/images/bath-safety.jpg" alt="Safe bathroom for elderly home care" loading="lazy" decoding="async" fetchPriority="low" width={1200} height={800} className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-[var(--color-primary)]/10" />
             </div>
           </div>
@@ -90,7 +90,7 @@ export default function HomePage() {
           {stakeholders.map(s => (
             <Link key={s.slug} href={`/${s.slug}`} className="card group overflow-hidden hover:-translate-y-1 !p-0">
               <div className="relative h-36 overflow-hidden">
-                <img src={s.image} alt={s.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                <img src={s.image} alt={s.title} loading="lazy" decoding="async" fetchPriority="low" width={1200} height={800} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
                 <div className="absolute inset-0 bg-[var(--color-primary)]/10" />
               </div>
               <div className="p-5">
@@ -129,6 +129,11 @@ export default function HomePage() {
           <img
             src="/images/family-couch.jpg"
             alt="Family relaxing together on couch at home"
+            loading="lazy"
+            decoding="async"
+            fetchPriority="low"
+            width={1200}
+            height={800}
             className="absolute inset-0 w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-[var(--color-primary)]/25" />
@@ -173,7 +178,7 @@ export default function HomePage() {
             </Link>
           </div>
           <div className="order-1 lg:order-2 relative rounded-[var(--radius-lg)] overflow-hidden shadow-md">
-            <img src="/images/nurse-senior.jpg" alt="Discharge coordinator" className="w-full object-cover" />
+            <img src="/images/nurse-senior.jpg" alt="Discharge coordinator" loading="lazy" decoding="async" fetchPriority="low" width={1200} height={800} className="w-full object-cover" />
             <div className="absolute inset-0 bg-[var(--color-secondary)]/10" />
           </div>
         </div>

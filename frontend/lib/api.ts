@@ -1,5 +1,5 @@
 // API client for care-circle backend
-// Matches routes from JoshFialkoff/care-circle backend
+// Matches routes from backend/src/api (Express + Prisma, JWT bearer auth)
 
 import type {
   CareCase,
@@ -14,68 +14,160 @@ import type {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://care-backend-mvp.forwardjump-com198.workers.dev';
 
+const TOKEN_KEY = 'carecircle_token';
+
+export function setToken(token: string): void {
+  if (typeof window !== 'undefined') window.localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function clearToken(): void {
+  if (typeof window !== 'undefined') window.localStorage.removeItem(TOKEN_KEY);
+}
+
+function getToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return window.localStorage.getItem(TOKEN_KEY);
+}
+
 async function api<T>(path: string, options?: RequestInit): Promise<T> {
   const url = `${API_BASE}${path}`;
+  const token = getToken();
   const res = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     ...options,
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || `HTTP ${res.status}`);
+    const message =
+      res.status === 401
+        ? 'Authentication required — please sign in.'
+        : (data.error as string | undefined) || `HTTP ${res.status}`;
+    const err = new Error(message) as Error & { status?: number };
+    err.status = res.status;
+    throw err;
   }
   return res.json() as Promise<T>;
 }
 
 export const auth = {
-  login: (email: string, password: string) =>
-    api<{ token: string }>('/api/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    }),
+  login: async (email: string, password: string) => {
+    const res = await api<{ token: string; expiresIn: number; user: { id: string; email: string; name: string } }>(
+      '/api/auth/login',
+      { method: 'POST', body: JSON.stringify({ email, password }) }
+    );
+    setToken(res.token);
+    return res;
+  },
   me: () => api<{ user: unknown }>('/api/auth/me'),
 };
 
 export const cases = {
-  list: () => api<{ cases: CareCase[] }>('/api/cases/list'),
-  get: (id: string) => api<{ case: CareCase }>(`/api/cases/${id}`),
-  create: (data: Omit<CareCase, 'id' | 'createdAt' | 'updatedAt' | 'coordinator' | 'members' | 'medications' | 'tasks'>) =>
-    api<{ case: CareCase }>('/api/cases/create', {
+  list: () => api<CareCase[]>('/api/cases/list'),
+  get: (id: string) => api<CareCase>(`/api/cases/${id}`),
+  create: (data: { patientName: string; patientDob: string; emergencyContact: string; coordinatorId?: string }) =>
+    api<CareCase>('/api/cases/create', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 };
 
 export const medicationsApi = {
-  list: (caseId: string) => api<{ medications: Medication[] }>(`/api/medications/${caseId}`),
-  create: (caseId: string, data: Omit<Medication, 'id'>) =>
-    api<{ medication: Medication }>(`/api/medications/${caseId}`, {
+  list: (caseId: string) => api<Medication[]>(`/api/medications/${caseId}`),
+  create: (caseId: string, data: { name: string; dosage?: string; schedule?: string; source?: string; notes?: string }) =>
+    api<Medication>(`/api/medications/${caseId}`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  update: (caseId: string, medId: string, data: Partial<Medication>) =>
-    api<{ medication: Medication }>(`/api/medications/${caseId}/${medId}`, {
+  update: (
+    caseId: string,
+    medId: string,
+    data: { name?: string; dosage?: string; schedule?: string; source?: string; notes?: string; verifiedAt?: string | null }
+  ) =>
+    api<Medication>(`/api/medications/${caseId}/${medId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
 };
 
 export const tasksApi = {
-  list: (caseId: string) => api<{ tasks: Task[] }>(`/api/tasks/${caseId}`),
-  create: (caseId: string, data: Omit<Task, 'id'>) =>
-    api<{ task: Task }>(`/api/tasks/${caseId}`, {
+  list: (caseId: string) => api<Task[]>(`/api/tasks/${caseId}`),
+  create: (caseId: string, data: Partial<Task> & { title: string; dueDate: string }) =>
+    api<Task>(`/api/tasks/${caseId}`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
   update: (caseId: string, taskId: string, data: Partial<Task>) =>
-    api<{ task: Task }>(`/api/tasks/${caseId}/${taskId}`, {
+    api<Task>(`/api/tasks/${caseId}/${taskId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
   addComment: (caseId: string, taskId: string, content: string) =>
-    api<{ comment: TaskComment }>(`/api/tasks/${caseId}/${taskId}/comments`, {
+    api<TaskComment>(`/api/tasks/${caseId}/${taskId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    }),
+};
+
+export interface BarrierNote {
+  id: string;
+  content: string;
+  createdAt: string;
+  author: { id: string; name: string } | null;
+}
+
+export interface Barrier {
+  id: string;
+  caseId: string;
+  type: string;
+  priority: string;
+  description: string;
+  ownerId?: string | null;
+  status: string;
+  dueDate?: string | null;
+  escalatedAt?: string | null;
+  resolvedAt?: string | null;
+  resolutionNote?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  owner?: { id: string; name: string } | null;
+  notes?: BarrierNote[];
+}
+
+export interface BarrierMetrics {
+  casesConsidered: number;
+  sameDayDischargeRate: number | null;
+  medianTimeToResolutionHoursByType: Record<string, number>;
+  slaBreachRate: number | null;
+  openBarrierCount: number;
+}
+
+export interface BarrierReadiness {
+  status: 'GREEN' | 'AMBER' | 'RED';
+  openBarriers: number;
+  highPriority: number;
+}
+
+export const barriersApi = {
+  list: (caseId: string) => api<Barrier[]>(`/api/barriers/${caseId}`),
+  metrics: () => api<BarrierMetrics>('/api/barriers/metrics'),
+  readiness: (caseId: string) => api<BarrierReadiness>(`/api/barriers/${caseId}/readiness`),
+  update: (
+    caseId: string,
+    barrierId: string,
+    data: Partial<Pick<Barrier, 'type' | 'priority' | 'description' | 'status' | 'dueDate'>> & {
+      resolutionNote?: string;
+      ownerId?: string | null;
+    }
+  ) =>
+    api<Barrier>(`/api/barriers/${caseId}/${barrierId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  addNote: (caseId: string, barrierId: string, content: string) =>
+    api<BarrierNote>(`/api/barriers/${caseId}/${barrierId}/notes`, {
       method: 'POST',
       body: JSON.stringify({ content }),
     }),

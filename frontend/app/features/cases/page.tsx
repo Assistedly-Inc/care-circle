@@ -1,11 +1,36 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { DemoProfile, generateId, getDemoProfiles } from '@/lib/demoData';
+import Link from 'next/link';
+import { cases as casesApi } from '@/lib/api';
+import type { CareCase } from '@/types';
+
+interface CaseView {
+  id: string;
+  patient: { displayName: string; primaryDiagnosis: string };
+  emergencyContacts: { name: string }[];
+  medications: unknown[];
+  tasks: unknown[];
+  status: string;
+  updatedAt: string;
+}
+
+function toCaseView(c: CareCase): CaseView {
+  return {
+    id: c.id,
+    patient: { displayName: c.patientName, primaryDiagnosis: c.dischargeNotes || '—' },
+    emergencyContacts: c.emergencyContact ? [{ name: c.emergencyContact }] : [],
+    medications: c.medications || [],
+    tasks: c.tasks || [],
+    status: c.consentGiven ? 'active' : 'pending',
+    updatedAt: c.updatedAt,
+  };
+}
 
 export default function CasesDemoPage() {
-  const [profiles, setProfiles] = useState<DemoProfile[]>([]);
+  const [profiles, setProfiles] = useState<CaseView[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
@@ -19,11 +44,20 @@ export default function CasesDemoPage() {
   });
 
   useEffect(() => {
-    const t = setTimeout(() => {
-      setProfiles(getDemoProfiles());
-      setLoading(false);
-    }, 400);
-    return () => clearTimeout(t);
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await casesApi.list();
+        if (cancelled) return;
+        setProfiles(list.map(toCaseView));
+        setError(null);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load cases');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   const statusCount = useMemo(() => {
@@ -33,33 +67,24 @@ export default function CasesDemoPage() {
     }, {} as Record<string, number>);
   }, [profiles]);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.leadName.trim() || !form.leadEmail.trim() || !form.patientFirstName.trim()) return;
 
-    const newProfile: DemoProfile = {
-      id: generateId(),
-      patient: {
-        displayName: `${form.patientFirstName} ${form.patientLastName}`.trim(),
-        firstName: form.patientFirstName,
-        lastName: form.patientLastName,
-        dateOfBirth: '—',
-        primaryDiagnosis: form.diagnosis || 'Pending intake',
-        gender: '—',
-        phone: '—',
-        address: '—',
-      },
-      emergencyContacts: [],
-      medications: [],
-      tasks: [],
-      notifications: [],
-      status: 'pending',
-      updatedAt: new Date().toISOString(),
-    };
-
-    setProfiles(prev => [newProfile, ...prev]);
-    setShowForm(false);
-    setSubmitted(true);
+    try {
+      const created = await casesApi.create({
+        patientName: `${form.patientFirstName} ${form.patientLastName}`.trim(),
+        // Backend requires patientDob; the form doesn't collect it — placeholder intake date.
+        patientDob: new Date().toISOString().slice(0, 10),
+        emergencyContact: `${form.leadName} (${form.leadEmail})`,
+      });
+      setProfiles(prev => [toCaseView(created), ...prev]);
+      setShowForm(false);
+      setSubmitted(true);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create care plan');
+    }
   }
 
   return (
@@ -76,7 +101,7 @@ export default function CasesDemoPage() {
           </p>
           {!showForm && !submitted && (
             <button onClick={() => setShowForm(true)} className="btn btn-primary btn-lg">
-              Create a Demo Care Plan
+              Create a Care Plan
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
             </button>
           )}
@@ -94,7 +119,7 @@ export default function CasesDemoPage() {
         <div className="container mt-8">
           <div className="card !p-6 md:!p-8 max-w-2xl mx-auto border border-[var(--color-accent)]/20">
             <h2 className="text-lg font-extrabold text-[var(--color-text)] mb-1">Start a Care Transition</h2>
-            <p className="text-sm text-[var(--color-text-light)] mb-6">Fill in your details and a demo care plan will be created. A specialist will reach out to help you set up the real thing.</p>
+            <p className="text-sm text-[var(--color-text-light)] mb-6">Fill in your details and a care plan will be created. A specialist will reach out to help you set up the real thing.</p>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
@@ -130,7 +155,7 @@ export default function CasesDemoPage() {
                 <input type="text" value={form.diagnosis} onChange={e => setForm(f => ({ ...f, diagnosis: e.target.value }))} className="field w-full" placeholder="e.g. Total Knee Replacement" />
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="submit" className="btn btn-primary">Create Demo Plan</button>
+                <button type="submit" className="btn btn-primary">Create Plan</button>
                 <button type="button" onClick={() => setShowForm(false)} className="btn btn-outline">Cancel</button>
               </div>
             </form>
@@ -138,66 +163,81 @@ export default function CasesDemoPage() {
         </div>
       )}
 
-      {/* Stats */}
-      <div className="container mt-10">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          {[
-            { label: 'Active Plans', value: statusCount.active || 0, color: 'text-[var(--color-primary)]' },
-            { label: 'Pending', value: statusCount.pending || 0, color: 'text-[var(--color-accent)]' },
-            { label: 'Contacts', value: profiles.reduce((a, p) => a + p.emergencyContacts.length, 0), color: 'text-[var(--color-secondary)]' },
-            { label: 'Tasks', value: profiles.reduce((a, p) => a + p.tasks.length, 0), color: 'text-[#4a6b8a]' },
-          ].map(s => (
-            <div key={s.label} className="card text-center !p-5">
-              <div className={`text-3xl font-extrabold ${s.color}`}>{s.value}</div>
-              <div className="text-xs font-semibold text-[var(--color-muted)] uppercase mt-1">{s.label}</div>
+      {error ? (
+        <div className="container mt-8">
+          <div className="card !p-6 border border-[var(--color-danger)]/30">
+            <p className="text-sm font-semibold text-[var(--color-danger)] mb-1">Couldn&apos;t load care plans</p>
+            <p className="text-xs text-[var(--color-text-light)] mb-4">{error}</p>
+            <div className="flex gap-2">
+              <button onClick={() => window.location.reload()} className="btn btn-outline text-xs">Retry</button>
+              <Link href="/features/auth" className="btn btn-primary text-xs">Go to sign-in</Link>
             </div>
-          ))}
-        </div>
-
-        {/* Profile List */}
-        {loading && (
-          <div className="text-center py-12">
-            <div className="w-8 h-8 border-2 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-            <p className="text-sm text-[var(--color-text-light)]">Loading care plans...</p>
           </div>
-        )}
-
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {profiles.map(p => (
-            <article key={p.id} className={`card group hover:-translate-y-1 transition-transform ${p.status === 'pending' ? 'border-l-4 border-l-[var(--color-accent)]' : 'border-l-4 border-l-[var(--color-primary)]'}`}>
-              <div className="flex items-start justify-between mb-3">
-                <h3 className="text-lg font-extrabold text-[var(--color-text)] group-hover:text-[var(--color-primary)] transition-colors">
-                  {p.patient.displayName}
-                </h3>
-                <span className={`badge text-xs font-bold px-2 py-0.5 ${p.status === 'active' ? 'bg-[#d1fae5] text-[#065f46]' : 'bg-[#dbeafe] text-[#1e40af]'}`}>
-                  {p.status}
-                </span>
-              </div>
-              <p className="text-sm text-[var(--color-text-light)] mb-1 leading-relaxed">{p.patient.primaryDiagnosis}</p>
-              <div className="flex flex-wrap gap-2 my-3">
-                <span className="inline-flex items-center gap-1 text-xs font-semibold bg-[var(--color-primary)]/8 text-[var(--color-primary)] px-2 py-0.5 rounded-md">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.5-4.5S12 5.765 12 8.25c0 1.734.999 3.219 2.456 4.042M12 8.25a4.5 4.5 0 0 1-4.5-4.5S7.5 3.765 12 3.765 16.5 5.765 16.5 8.25c0 1.734-.999 3.219-2.456 4.042"/></svg>
-                  {p.emergencyContacts.length} contacts
-                </span>
-                <span className="inline-flex items-center gap-1 text-xs font-semibold bg-[var(--color-accent)]/10 text-[var(--color-accent)] px-2 py-0.5 rounded-md">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.362 5.214A8.252 8.252 0 0 1 12 21 8.25 8.25 0 0 1 6.038 7.048 8.287 8.287 0 0 0 9 9.6a8.983 8.983 0 0 1 3.361-6.867 8.21 8.21 0 0 0 3 2.48Z"/><path strokeLinecap="round" strokeLinejoin="round" d="M12 18a3.75 3.75 0 0 0 .495-7.467 5.99 5.99 0 0 0-1.925 3.546 5.974 5.974 0 0 1-2.133-1.001A3.75 3.75 0 0 0 12 18Z"/></svg>
-                  {p.medications.length} meds
-                </span>
-                <span className="inline-flex items-center gap-1 text-xs font-semibold bg-[var(--color-secondary)]/10 text-[var(--color-secondary)] px-2 py-0.5 rounded-md">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
-                  {p.tasks.length} tasks
-                </span>
-              </div>
-              <div className="text-xs text-[var(--color-muted)] border-t border-[var(--color-border)] pt-3 mt-1">
-                Updated {new Date(p.updatedAt).toLocaleDateString()}
-              </div>
-            </article>
-          ))}
-          {profiles.length === 0 && !loading && (
-            <p className="text-[var(--color-text-light)] col-span-full">No care plans yet. Create your first one above.</p>
-          )}
         </div>
-      </div>
+      ) : (
+        <>
+          {/* Stats */}
+          <div className="container mt-10">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+              {[
+                { label: 'Active Plans', value: statusCount.active || 0, color: 'text-[var(--color-primary)]' },
+                { label: 'Pending', value: statusCount.pending || 0, color: 'text-[var(--color-accent)]' },
+                { label: 'Contacts', value: profiles.reduce((a, p) => a + p.emergencyContacts.length, 0), color: 'text-[var(--color-secondary)]' },
+                { label: 'Tasks', value: profiles.reduce((a, p) => a + p.tasks.length, 0), color: 'text-[#4a6b8a]' },
+              ].map(s => (
+                <div key={s.label} className="card text-center !p-5">
+                  <div className={`text-3xl font-extrabold ${s.color}`}>{s.value}</div>
+                  <div className="text-xs font-semibold text-[var(--color-muted)] uppercase mt-1">{s.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Profile List */}
+            {loading && (
+              <div className="text-center py-12">
+                <div className="w-8 h-8 border-2 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                <p className="text-sm text-[var(--color-text-light)]">Loading care plans...</p>
+              </div>
+            )}
+
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {profiles.map(p => (
+                <article key={p.id} className={`card group hover:-translate-y-1 transition-transform ${p.status === 'pending' ? 'border-l-4 border-l-[var(--color-accent)]' : 'border-l-4 border-l-[var(--color-primary)]'}`}>
+                  <div className="flex items-start justify-between mb-3">
+                    <h3 className="text-lg font-extrabold text-[var(--color-text)] group-hover:text-[var(--color-primary)] transition-colors">
+                      {p.patient.displayName}
+                    </h3>
+                    <span className={`badge text-xs font-bold px-2 py-0.5 ${p.status === 'active' ? 'bg-[#d1fae5] text-[#065f46]' : 'bg-[#dbeafe] text-[#1e40af]'}`}>
+                      {p.status}
+                    </span>
+                  </div>
+                  <p className="text-sm text-[var(--color-text-light)] mb-1 leading-relaxed">{p.patient.primaryDiagnosis}</p>
+                  <div className="flex flex-wrap gap-2 my-3">
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold bg-[var(--color-primary)]/8 text-[var(--color-primary)] px-2 py-0.5 rounded-md">
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.5-4.5S12 5.765 12 8.25c0 1.734.999 3.219 2.456 4.042M12 8.25a4.5 4.5 0 0 1-4.5-4.5S7.5 3.765 12 3.765 16.5 5.765 16.5 8.25c0 1.734-.999 3.219-2.456 4.042"/></svg>
+                      {p.emergencyContacts.length} contacts
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold bg-[var(--color-accent)]/10 text-[var(--color-accent)] px-2 py-0.5 rounded-md">
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.362 5.214A8.252 8.252 0 0 1 12 21 8.25 8.25 0 0 1 6.038 7.048 8.287 8.287 0 0 0 9 9.6a8.983 8.983 0 0 1 3.361-6.867 8.21 8.21 0 0 0 3 2.48Z"/><path strokeLinecap="round" strokeLinejoin="round" d="M12 18a3.75 3.75 0 0 0 .495-7.467 5.99 5.99 0 0 0-1.925 3.546 5.974 5.974 0 0 1-2.133-1.001A3.75 3.75 0 0 0 12 18Z"/></svg>
+                      {p.medications.length} meds
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold bg-[var(--color-secondary)]/10 text-[var(--color-secondary)] px-2 py-0.5 rounded-md">
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+                      {p.tasks.length} tasks
+                    </span>
+                  </div>
+                  <div className="text-xs text-[var(--color-muted)] border-t border-[var(--color-border)] pt-3 mt-1">
+                    Updated {new Date(p.updatedAt).toLocaleDateString()}
+                  </div>
+                </article>
+              ))}
+              {profiles.length === 0 && !loading && (
+                <p className="text-[var(--color-text-light)] col-span-full">No care plans yet. Create your first one above.</p>
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

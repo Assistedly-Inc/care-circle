@@ -1,3 +1,8 @@
 name = "care-circle"
 compatibility_date = "2024-01-01"
 pages_build_output_dir = "out"
+
+routes = [
+  # Custom domain at apex (creates DNS automatically when deployed with a zone-edit token)
+  { pattern = "assistedly.ai", custom_domain = true, zone_id = "70904cb60620dcfb62f49cccbfe72959" },
+]

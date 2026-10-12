@@ -332,6 +332,12 @@ async function auditPage(url) {
   add('privacy', 'cmp_banner', 'Consent banner (CMP) present', hasCmp ? PASS : WARN,
     hasCmp ? 'consent banner component present' : 'no consent banner found',
     'Show a visible consent choice (accept / essential-only) so ad & analytics tags can legally un-gate.');
+  const gtmClients = /googletagmanager\.com\/gtm\.js/.test(html)
+    ? [...new Set([...html.matchAll(/GTM-[A-Z0-9]{6,}/g)].map((m) => m[0]))]
+    : [];
+  add('privacy', 'gtm_client', 'GTM client container loaded (GTM-5MZDBQ5P)', gtmClients.includes('GTM-5MZDBQ5P') ? PASS : WARN,
+    gtmClients.length ? `GTM containers referenced: ${gtmClients.join(', ')}` : 'no GTM loader in page',
+    'Load the GTM client container after consent defaults; the server-side container (GTM-P7V2DSFQ) is wired via server_container_url in GTM, not a browser script.');
 
   // ── Navigation / dead ends ──
   const internal = [...new Set(linkHrefs.filter((h) => h.startsWith('/') && !h.startsWith('/_next') && !h.startsWith('/cdn-cgi') && !h.startsWith('/images')))]

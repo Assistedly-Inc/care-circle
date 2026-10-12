@@ -44,7 +44,7 @@ Exit code is 1 when any check fails (CI-friendly).
 12. **SEO hygiene** — title (30–65 chars), meta description (70–160), canonical, OG tags incl. og:image, JSON-LD structured data, robots.txt + sitemap.xml.
 13. **Accessibility** — lang attr, alt text on all images, semantic headings (exactly one H1, H2 section structure), nav landmarks.
 14. **Performance budget** — page weight < ~1.5 MB, limited image count, lazy loading.
-15. **Analytics & consent** — Google Consent Mode v2 defaults must be set before GTM loads; a visible consent banner (accept / essential-only) must exist; favicon served (browsers 404 on /favicon.ico otherwise).
+15. **Analytics & consent** — Google Consent Mode v2 defaults must be set before GTM loads; a visible consent banner (accept / essential-only) must exist; favicon served (browsers 404 on /favicon.ico otherwise). GTM client container **GTM-5MZDBQ5P** must load after consent defaults; server-side container **GTM-P7V2DSFQ** is configured via `server_container_url` in GTM (never a browser script).
 
 ## Output format
 Return a structured report to the delegating bot:

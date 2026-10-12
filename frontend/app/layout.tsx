@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import Script from 'next/script';
 import './globals.css';
 import SiteNav from './SiteNav';
 import Footer from './Footer';
@@ -64,6 +63,16 @@ export const metadata: Metadata = {
  */
 const consentDefaultsScript = `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied',wait_for_update:2000});try{var c=JSON.parse(localStorage.getItem('cc-consent'));if(c&&c.v===1&&c.s)gtag('consent','update',c.s);}catch(e){}`;
 
+/**
+ * Standard Google Tag Manager loader. Client-side container only.
+ * The server-side container (GTM-P7V2DSFQ) is NOT loaded in the browser —
+ * it receives events from the client container via the `server_container_url`
+ * configured in GTM (https://server-side-tagging-piipsyjx3a-uc.a.run.app).
+ */
+function gtmLoaderScript(containerId: string) {
+  return `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${containerId}');`;
+}
+
 const jsonLd = {
   '@context': 'https://schema.org',
   '@graph': [
@@ -89,11 +98,18 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased flex flex-col min-h-screen">
-        <Script
-          id="consent-defaults"
-          strategy="beforeInteractive"
-          dangerouslySetInnerHTML={{ __html: consentDefaultsScript }}
-        />
+        {/* Google Consent Mode v2 defaults — MUST execute before the GTM loader */}
+        <script dangerouslySetInnerHTML={{ __html: consentDefaultsScript }} />
+        {/* Google Tag Manager — client container GTM-5MZDBQ5P */}
+        <script dangerouslySetInnerHTML={{ __html: gtmLoaderScript('GTM-5MZDBQ5P') }} />
+        <noscript>
+          <iframe
+            src="https://www.googletagmanager.com/ns.html?id=GTM-5MZDBQ5P"
+            height="0"
+            width="0"
+            style={{ display: 'none', visibility: 'hidden' }}
+          />
+        </noscript>
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}

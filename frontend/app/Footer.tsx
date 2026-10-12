@@ -15,12 +15,15 @@ const featureLinks = [
   { href: '/features/tasks/', label: 'Tasks' },
   { href: '/features/health/', label: 'Health' },
   { href: '/features/notifications/', label: 'Reminders' },
+  { href: '/features/follow-ups/', label: 'Follow-Ups' },
   { href: '/features/export/', label: 'Export' },
 ];
 
 const legalLinks = [
   { href: '/features/audit/', label: 'Compliance' },
   { href: '/features/auth/', label: 'Access & Security' },
+  { href: '/privacy/', label: 'Privacy' },
+  { href: '/terms/', label: 'Terms' },
 ];
 
 export default function Footer() {
@@ -89,6 +92,9 @@ export default function Footer() {
 
         <div className="mt-10 pt-6 border-t border-[var(--color-border)] flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs text-[var(--color-muted)]">&copy; {new Date().getFullYear()} Assistedly Cares. All rights reserved.</p>
+          <a href="mailto:support@assistedly.ai" className="text-xs text-[var(--color-muted)] hover:text-[var(--color-primary)] transition-colors no-underline hover:no-underline">
+            Contact: support@assistedly.ai
+          </a>
           <p className="text-xs text-[var(--color-muted)]">HIPAA-aware. Built for care transitions.</p>
         </div>
       </div>

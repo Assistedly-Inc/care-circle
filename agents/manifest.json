@@ -1,6 +1,6 @@
 {
   "registry": "care-circle-agents",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "agents": [
     {
       "name": "care-circle-operator",
@@ -12,6 +12,11 @@
       "name": "server-health-maintainer",
       "description": "Non-disruptive Linux server health monitoring, cleanup, and hardening",
       "definition": "/server-health-maintainer.md"
+    },
+    {
+      "name": "landing-page-auditor",
+      "description": "Audits assistedly.ai landing pages against Google Ads landing page requirements and modern UX best practices",
+      "definition": "/landing-page-auditor.md"
     }
   ]
 }

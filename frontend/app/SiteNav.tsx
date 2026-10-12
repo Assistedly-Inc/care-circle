@@ -11,16 +11,7 @@ const personaLinks = [
   { href: '/patient/', label: 'Loved One' },
 ];
 
-const featureLinks = [
-  { href: '/features/cases/', label: 'Care Plans' },
-  { href: '/features/medications/', label: 'Medications' },
-  { href: '/features/tasks/', label: 'Tasks' },
-  { href: '/features/health/', label: 'Health' },
-  { href: '/features/notifications/', label: 'Reminders' },
-  { href: '/features/follow-ups/', label: 'Follow-Ups' },
-  { href: '/features/export/', label: 'Export' },
-  { href: '/features/audit/', label: 'Compliance' },
-];
+
 
 function isActive(href: string, pathname: string): boolean {
   if (href === '/') return pathname === '/' || pathname === '/index.html';
@@ -71,31 +62,6 @@ export default function SiteNav() {
         {/* Spacer */}
         <div className="flex-1" />
 
-        {/* Desktop features dropdown */}
-        <div className="hidden md:block relative group" aria-label="Features">
-          <button className="px-3 py-1.5 rounded-[var(--radius-md)] text-sm font-semibold text-[var(--color-primary)] hover:bg-[#fdf5ef] hover:text-[var(--color-secondary)] transition-colors">
-            Features
-            <svg className="inline-block w-4 h-4 ml-0.5 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-          </button>
-          <div className="absolute top-full right-0 mt-2 w-52 bg-white rounded-[var(--radius-md)] shadow-[var(--shadow-md)] border border-[var(--color-border)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all origin-top-right p-3 grid grid-cols-2 gap-2">
-            {featureLinks.map(f => {
-              const active = isActive(f.href, pathname);
-              return (
-                <Link key={f.href} href={f.href}
-                  className={`px-3 py-2 text-sm font-semibold rounded-[var(--radius-md)] transition-colors text-center ${
-                    active
-                      ? 'bg-[#fbeedf] text-[var(--color-accent)]'
-                      : 'text-[var(--color-primary)] hover:bg-[#faf7f3]'
-                  }`}
-                  aria-current={active ? 'page' : undefined}
-                >
-                  {f.label}
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-
         {/* CTA */}
         <Link href="/features/cases/" className="hidden md:inline-flex btn btn-primary !py-2 !px-4 text-sm whitespace-nowrap">
           Start a Care Plan
@@ -125,28 +91,6 @@ export default function SiteNav() {
               <p className="px-4 text-xs font-bold uppercase tracking-widest text-[var(--color-muted)] mb-1">For</p>
               <div className="space-y-1">
                 {personaLinks.map(item => {
-                  const active = isActive(item.href, pathname);
-                  return (
-                    <Link key={item.href} href={item.href}
-                      onClick={() => setMobileOpen(false)}
-                      className={`block px-4 py-3 rounded-[var(--radius-md)] text-sm font-semibold transition-colors ${
-                        active
-                          ? 'bg-[#fbeedf] text-[var(--color-accent)]'
-                          : 'text-[var(--color-primary)] hover:bg-[#faf7f3]'
-                      }`}
-                      aria-current={active ? 'page' : undefined}
-                    >
-                      {item.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-            {/* Features section */}
-            <div>
-              <p className="px-4 text-xs font-bold uppercase tracking-widest text-[var(--color-muted)] mb-1">Features</p>
-              <div className="space-y-1">
-                {featureLinks.map(item => {
                   const active = isActive(item.href, pathname);
                   return (
                     <Link key={item.href} href={item.href}

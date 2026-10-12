@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { cases as casesApi } from '@/lib/api';
+import { getDemoProfiles } from '@/lib/demoData';
 import type { CareCase } from '@/types';
 
 interface CaseView {
@@ -27,10 +28,27 @@ function toCaseView(c: CareCase): CaseView {
   };
 }
 
+/** Default care plan shown to visitors before they sign in — keeps the page interactive immediately. */
+function demoCaseView(): CaseView {
+  const d = getDemoProfiles()[0];
+  return {
+    id: d.id,
+    patient: { displayName: d.patient.displayName, primaryDiagnosis: d.patient.primaryDiagnosis },
+    emergencyContacts: d.emergencyContacts.map((c) => ({ name: c.name })),
+    medications: d.medications,
+    tasks: d.tasks,
+    status: 'active',
+    updatedAt: d.updatedAt,
+  };
+}
+
+const isDemoId = (id: string) => id.startsWith('demo-') || id.startsWith('local-');
+
 export default function CasesDemoPage() {
   const [profiles, setProfiles] = useState<CaseView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [demoMode, setDemoMode] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
@@ -49,10 +67,21 @@ export default function CasesDemoPage() {
       try {
         const list = await casesApi.list();
         if (cancelled) return;
-        setProfiles(list.map(toCaseView));
+        if (list && list.length > 0) {
+          setProfiles(list.map(toCaseView));
+          setDemoMode(false);
+        } else {
+          setProfiles([demoCaseView()]);
+          setDemoMode(true);
+        }
         setError(null);
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load cases');
+        // Visitors without a session hit the auth-required backend. Instead of an
+        // error wall, load the default care plan so the page is interactive now.
+        if (cancelled) return;
+        setProfiles([demoCaseView()]);
+        setDemoMode(true);
+        setError(null);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -79,11 +108,28 @@ export default function CasesDemoPage() {
         emergencyContact: `${form.leadName} (${form.leadEmail})`,
       });
       setProfiles(prev => [toCaseView(created), ...prev]);
+      setDemoMode(false);
       setShowForm(false);
       setSubmitted(true);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create care plan');
+      // Visitor without auth: create the plan locally so the interaction completes.
+      const local: CaseView = {
+        id: `local-${Date.now()}`,
+        patient: {
+          displayName: `${form.patientFirstName} ${form.patientLastName}`.trim() || 'New Care Plan',
+          primaryDiagnosis: form.diagnosis || 'Post-Discharge Care Plan',
+        },
+        emergencyContacts: form.leadName ? [{ name: `${form.leadName} (${form.leadEmail})` }] : [],
+        medications: [],
+        tasks: [],
+        status: 'pending',
+        updatedAt: new Date().toISOString(),
+      };
+      setProfiles(prev => [local, ...prev]);
+      setDemoMode(true);
+      setShowForm(false);
+      setError(null);
     }
   }
 
@@ -113,6 +159,22 @@ export default function CasesDemoPage() {
           )}
         </div>
       </div>
+
+      {/* Demo-mode notice (shown when serving the default care plan to visitors) */}
+      {demoMode && (
+        <div className="container mt-6">
+          <div className="card !p-4 flex flex-wrap items-center justify-between gap-3 border border-[var(--color-accent)]/30 bg-[#fdf9f3]">
+            <p className="text-sm text-[var(--color-text-light)] leading-relaxed">
+              <span className="font-bold text-[var(--color-accent)]">Demo mode — </span>
+              you&apos;re exploring a sample care plan so you can try it right away.{' '}
+              <Link href="/features/auth" className="font-semibold text-[var(--color-primary)] hover:underline">
+                Sign in
+              </Link>{' '}
+              to create and manage real care plans.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Lead + Create Form */}
       {showForm && (
@@ -207,8 +269,8 @@ export default function CasesDemoPage() {
                     <h3 className="text-lg font-extrabold text-[var(--color-text)] group-hover:text-[var(--color-primary)] transition-colors">
                       {p.patient.displayName}
                     </h3>
-                    <span className={`badge text-xs font-bold px-2 py-0.5 ${p.status === 'active' ? 'bg-[#d1fae5] text-[#065f46]' : 'bg-[#dbeafe] text-[#1e40af]'}`}>
-                      {p.status}
+                    <span className={`badge text-xs font-bold px-2 py-0.5 ${isDemoId(p.id) ? 'bg-[#fbeedf] text-[var(--color-accent)]' : p.status === 'active' ? 'bg-[#d1fae5] text-[#065f46]' : 'bg-[#dbeafe] text-[#1e40af]'}`}>
+                      {isDemoId(p.id) ? 'Demo' : p.status}
                     </span>
                   </div>
                   <p className="text-sm text-[var(--color-text-light)] mb-1 leading-relaxed">{p.patient.primaryDiagnosis}</p>

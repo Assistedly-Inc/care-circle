@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
+import Script from 'next/script';
 import './globals.css';
 import SiteNav from './SiteNav';
 import Footer from './Footer';
+import ConsentBanner from './ConsentBanner';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://assistedly.ai'),
@@ -47,7 +49,20 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  icons: {
+    icon: [
+      { url: '/favicon.ico' },
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+    ],
+  },
 };
+
+/**
+ * Google Consent Mode v2 defaults. Must run BEFORE the GTM container
+ * (edge-injected via Cloudflare's googletaggateway) so GA4/Ads tags
+ * start in a denied state and only un-gate after explicit user choice.
+ */
+const consentDefaultsScript = `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied',wait_for_update:2000});try{var c=JSON.parse(localStorage.getItem('cc-consent'));if(c&&c.v===1&&c.s)gtag('consent','update',c.s);}catch(e){}`;
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -74,6 +89,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased flex flex-col min-h-screen">
+        <Script
+          id="consent-defaults"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: consentDefaultsScript }}
+        />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -83,6 +103,7 @@ export default function RootLayout({
           {children}
         </main>
         <Footer />
+        <ConsentBanner />
       </body>
     </html>
   );

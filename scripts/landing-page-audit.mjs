@@ -205,6 +205,15 @@ async function auditPage(url) {
   add('technical', 'https', 'HTTPS enforced', url.startsWith('https://') ? PASS : FAIL, url, 'Serve over HTTPS only.');
   add('technical', 'ttfb', 'Server response time', page.timeMs < 1000 ? PASS : page.timeMs < 2500 ? WARN : FAIL, `${page.timeMs} ms`, 'TTFB < 1s is expected; > 2.5s hurts CWV and quality score.');
   add('technical', 'content_type', 'Serves HTML', (page.headers['content-type'] || '').includes('text/html') ? PASS : WARN, page.headers['content-type'] || 'unknown', 'Should serve text/html.');
+  let faviconStatus = 'n/a';
+  try {
+    const f = await fetchUrl(new URL('favicon.ico', url).href, { timeout: 10000 });
+    faviconStatus = `HTTP ${f.status}`;
+  } catch { faviconStatus = 'error'; }
+  const hasIconLink = /<link[^>]*rel="[^"]*icon/i.test(html);
+  add('technical', 'favicon', 'Favicon present & served', hasIconLink && faviconStatus === 'HTTP 200' ? PASS : WARN,
+    `icon link: ${hasIconLink ? '✓' : '✗'} | /favicon.ico: ${faviconStatus}`,
+    'Add a favicon — browsers request /favicon.ico on every page load and log a 404 without it.');
 
   // robots.txt + sitemap.xml
   for (const [name, ok] of [['robots.txt', true], ['sitemap.xml', true]]) {
@@ -314,6 +323,16 @@ async function auditPage(url) {
   const businessName = (html.match(/Assistedly Cares/g) || []).length;
   add('transparency', 'business_identity', 'Business identity clear', businessName >= 1 ? PASS : WARN, `${businessName} mention(s) of "Assistedly Cares"`, 'State who you are and what the page offers immediately (relevance + transparency).');
 
+  // ── Privacy & consent (required for lawful GA4/Ads measurement) ──
+  const hasConsentDefaults = /gtag\(['"]consent['"]\s*,\s*['"]default['"]/.test(html);
+  add('privacy', 'consent_mode', 'Consent Mode v2 defaults', hasConsentDefaults ? PASS : FAIL,
+    hasConsentDefaults ? 'gtag consent default present' : 'missing',
+    'Set consent defaults (ad_storage/analytics_storage denied) BEFORE GTM loads — GA4 and Google Ads tags stay gated without it.');
+  const hasCmp = /data-consent-banner/.test(html) || (/cc-consent/.test(html) && /gtag\(['"]consent['"]/.test(html));
+  add('privacy', 'cmp_banner', 'Consent banner (CMP) present', hasCmp ? PASS : WARN,
+    hasCmp ? 'consent banner component present' : 'no consent banner found',
+    'Show a visible consent choice (accept / essential-only) so ad & analytics tags can legally un-gate.');
+
   // ── Navigation / dead ends ──
   const internal = [...new Set(linkHrefs.filter((h) => h.startsWith('/') && !h.startsWith('/_next') && !h.startsWith('/cdn-cgi') && !h.startsWith('/images')))]
     .slice(0, MAX_LINK_CHECKS);
@@ -365,9 +384,9 @@ function renderMarkdown(results) {
   const catNames = {
     technical: 'Technical', performance: 'Performance & CWV', seo: 'SEO & Metadata',
     ux: 'UX & Content', conversion: 'Conversion', transparency: 'Transparency (Google Ads policy)',
-    mobile: 'Mobile', accessibility: 'Accessibility',
+    privacy: 'Privacy & Consent', mobile: 'Mobile', accessibility: 'Accessibility',
   };
-  const order = ['technical', 'performance', 'seo', 'ux', 'conversion', 'transparency', 'mobile', 'accessibility'];
+  const order = ['technical', 'performance', 'seo', 'ux', 'conversion', 'transparency', 'privacy', 'mobile', 'accessibility'];
   for (const cat of order) {
     const list = results.checks.filter((c) => c.category === cat);
     if (!list.length) continue;

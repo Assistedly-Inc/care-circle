@@ -153,7 +153,7 @@ async function issueMfaCode(env, userId, phone, opts = {}) {
     : `\n\nPrefer codes by text? Open this link on your phone (or text START to ${optInNumber}): ${smsLink}`;
   const resendHtml = resendUrl
     ? `<p style="margin-top:18px;padding-top:14px;border-top:1px solid #e5e7eb;font-size:13px;color:#6b7280"><a href="${resendUrl}" style="color:#4a7c7e;font-weight:600">Text me the code instead</a> — we'll send it to your phone by SMS.</p>`
-    : `<p style="margin-top:18px;padding-top:14px;border-top:1px solid #e5e7eb;font-size:13px;color:#6b7280">Prefer codes by text? <a href="${smsLink}" style="color:#4a7c7e;font-weight:600">Tap here to text START to ${optInNumber}</a> from your phone — it opens your messaging app ready to send.</p>`;
+    : `<p style="margin-top:18px;padding-top:14px;border-top:1px solid #e5e7eb;font-size:13px;color:#6b7280">Prefer codes by text? <a href="${smsLink}" style="color:#4a7c7e;font-weight:600">Tap here to text START to ${optInNumber}</a> from your phone — it opens your messaging app ready to send.</p><p style="font-size:13px;color:#6b7280">If the link doesn't open your messaging app, just text <strong style="color:#374151">START</strong> to <strong style="color:#374151">${optInNumber}</strong>.</p>`;
   const emailBody = {
     to: opts.fallbackEmail,
     subject: 'Your Assistedly Cares verification code',
@@ -658,7 +658,7 @@ async function handleApi(request, env, url) {
     const optInDigits = optInNumber.replace(/\D/g, '');
     const smsLink = `sms:${optInDigits}?body=START`;
     const twoStepText = `\n\nTwo-step verification: after signing in you'll be asked to add a phone number so each sign-in is confirmed with a code texted to you. On your phone, tap this link (or text START to ${optInNumber}): ${smsLink}`;
-    const twoStepHtml = `<p style="margin-top:18px;padding-top:14px;border-top:1px solid #e5e7eb;font-size:13px;color:#6b7280"><strong>Two-step verification:</strong> after signing in you'll be asked to add a phone number so each sign-in is confirmed with a code texted to you. <a href="${smsLink}" style="color:#4a7c7e;font-weight:600">Tap here to text START to ${optInNumber}</a> from your phone so it can receive codes.</p>`;
+    const twoStepHtml = `<p style="margin-top:18px;padding-top:14px;border-top:1px solid #e5e7eb;font-size:13px;color:#6b7280"><strong>Two-step verification:</strong> after signing in you'll be asked to add a phone number so each sign-in is confirmed with a code texted to you. <a href="${smsLink}" style="color:#4a7c7e;font-weight:600">Tap here to text START to ${optInNumber}</a> from your phone so it can receive codes.</p><p style="font-size:13px;color:#6b7280">If the link doesn't open your messaging app (some email apps block it), just open your messaging app and text <strong style="color:#374151">START</strong> to <strong style="color:#374151">${optInNumber}</strong>.</p>`;
     const emailResult = await resendSendEmail(env, {
       to: email,
       subject: created ? 'Confirm your Assistedly Cares account' : 'Your Assistedly Cares sign-in link',

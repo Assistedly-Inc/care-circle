@@ -243,7 +243,7 @@ function smsErrorMessage(sent) {
 // ── Email via Resend (reminders) ────────────────────────────────────────────
 async function resendSendEmail(env, { to, subject, text, html }) {
   const apiKey = env.RESEND_API_KEY;
-  const from = env.EMAIL_FROM || 'Care Circle <onboarding@resend.dev>';
+  const from = env.EMAIL_FROM || 'Care Circle <hello@updates.assistedly.ai>';
   if (!apiKey) return { ok: false, reason: 'RESEND_API_KEY not set' };
   if (!to) return { ok: false, reason: 'No recipient email' };
   try {

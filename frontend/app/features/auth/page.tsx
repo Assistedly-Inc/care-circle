@@ -55,6 +55,16 @@ function SignInCard() {
   const [mfaChannel, setMfaChannel] = useState<'sms' | 'email'>('sms');
 
   const showSuccess = (s: AuthSession) => {
+    // Fire the Google Ads conversion event on successful passwordless sign-in
+    // (fires for both new-account and returning-user paths, incl. MFA flow).
+    try {
+      const w = window as unknown as { dataLayer?: Record<string, unknown>[] };
+      if (Array.isArray(w.dataLayer)) {
+        w.dataLayer.push({ event: 'generate_lead', lead_source: 'magic_link_signup', email: s.user.email });
+      }
+    } catch {
+      // tracking must never break sign-in
+    }
     setSession(s);
     if (s.mfaSetupRequired) {
       setStep('setup');
@@ -374,7 +384,7 @@ function SignInCard() {
                 autoComplete="tel"
                 value={setupPhone}
                 onChange={e => setSetupPhone(e.target.value)}
-                placeholder="617-500-3450"
+                placeholder="(617) 123-4567"
                 className="field flex-1"
               />
               <button type="submit" disabled={busy} className="btn btn-primary text-sm">

@@ -66,16 +66,9 @@ function SignInCard() {
       // tracking must never break sign-in
     }
     setSession(s);
-    if (s.mfaSetupRequired) {
-      setStep('setup');
-      setSetupStep('phone');
-      setSetupCode('');
-      setMessage({
-        tone: 'success',
-        text: `You're signed in as ${s.user.email}${s.user.name ? ` (${s.user.name})` : ''}. One more step: add a phone number for two-step verification.`,
-      });
-      return;
-    }
+    // Step 2 (two-step enrollment) is removed for now — SMS can't be completed
+    // while the carrier verification is unavailable. Re-enable by routing
+    // mfaSetupRequired to the 'setup' step again.
     setStep('done');
     setMessage({
       tone: 'success',

@@ -876,6 +876,40 @@ async function handleApi(request, env, url) {
     return json({ success: true, profile: doc, patient: doc }, 201);
   }
 
+  // ── Cases API (mirrors /api/care-profiles, with the shapes the frontend expects) ──
+  // GET /api/cases/list - PHI-scoped: only cases the user coordinates or belongs to
+  if (path === '/api/cases/list' && method === 'GET') {
+    const user = await getAuthedUser(env, request);
+    if (!user) return unauthorized('Login required to view cases');
+    const rows = await q(env, 'SELECT data FROM cases WHERE coordinator_id = ? OR id IN (SELECT case_id FROM case_members WHERE user_id = ?) ORDER BY updated_at DESC', [user.id, user.id]);
+    const list = rows.map(r => { try { return JSON.parse(r.data); } catch { return null; } }).filter(Boolean);
+    return json(list);
+  }
+
+  // POST /api/cases/create - authenticated; coordinator defaults to the requesting user
+  if (path === '/api/cases/create' && method === 'POST') {
+    const user = await getAuthedUser(env, request);
+    if (!user) return unauthorized('Login required to create a case');
+    const body = await request.json().catch(() => ({}));
+    const doc = normalizeCareProfile(body);
+    if (!doc.patient.displayName && !doc.patient.firstName && !doc.patient.lastName) return badRequest('Patient name is required');
+    const t = now();
+    await exec(env, 'INSERT INTO cases (id, coordinator_id, patient_name, status, consent_given, data, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)',
+      [doc.id, user.id, doc.patient.displayName || doc.patient.firstName || 'Unnamed', doc.status || 'active', doc.consent?.given ? 1 : 0, JSON.stringify(doc), t, t]);
+    await audit(env, doc.id, 'careProfile.create', { fields: Object.keys(body) }, user.id);
+    return json(doc, 201);
+  }
+
+  // GET /api/cases/:id - 403/404 unless coordinator or member
+  const caseGetMatch = path.match(/^\/api\/cases\/([^/]+)$/);
+  if (caseGetMatch && method === 'GET') {
+    const user = await getAuthedUser(env, request);
+    if (!user) return unauthorized();
+    const doc = await getCaseDoc(env, caseGetMatch[1]);
+    if (!doc || !(await canAccessCase(env, user, caseGetMatch[1]))) return notFound('Care case not found');
+    return json(doc);
+  }
+
   // -- outcome-linked analytics (site-scoped, audited) --
   if (path === '/api/analytics/outcomes' && method === 'GET') {
     const aUser = await getAuthedUser(env, request);

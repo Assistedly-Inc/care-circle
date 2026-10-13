@@ -79,10 +79,17 @@ export function isMfaChallenge(result: AuthResult): result is MfaChallenge {
 
 async function passwordlessVerify(token: string): Promise<AuthResult> {
   // May return a session (token set) OR an SMS-MFA challenge (no token yet).
-  return api<AuthResult>('/api/auth/passwordless/verify', {
+  const result = await api<AuthResult>('/api/auth/passwordless/verify', {
     method: 'POST',
     body: JSON.stringify({ token }),
   });
+  // A session means sign-in succeeded: persist the token immediately so
+  // follow-up calls (MFA enrollment, feature pages) are authorized. A
+  // challenge carries no token — mfaVerify() stores it once the code is
+  // confirmed. Without this, every post-sign-in call 401s with
+  // "Authentication required — please sign in."
+  if (!isMfaChallenge(result)) setToken(result.token);
+  return result;
 }
 
 async function mfaVerify(challengeToken: string, code: string): Promise<AuthSession> {

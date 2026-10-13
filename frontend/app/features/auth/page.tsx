@@ -1,113 +1,189 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { auth, AuthSession, MfaChallenge, isMfaChallenge } from '@/lib/api';
 
+// One-tap SMS opt-in (US 10DLC): opens the phone's messaging app pre-filled
+// with START to our Inkbox number. Mirrors the link in the verification email.
+const SMS_OPT_IN_LINK = 'sms:14133509016?body=START';
+const SMS_OPT_IN_NUMBER = '14133509016';
+
+type Tone = 'info' | 'success' | 'error';
+type Step = 'email' | 'mfa' | 'setup' | 'done';
+type SetupStep = 'phone' | 'code';
+
+function StepLabel({ n, total, label }: { n: number; total: number; label: string }) {
+  return (
+    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--color-primary)] mb-1">
+      Step {n} of {total} · {label}
+    </p>
+  );
+}
+
+function StatusLine({ tone, children }: { tone: Tone; children: ReactNode }) {
+  const styles: Record<Tone, string> = {
+    info: 'text-[var(--color-text-light)]',
+    success: 'text-[#065f46]',
+    error: 'text-[#991b1b] font-medium',
+  };
+  return (
+    <p className={`text-sm leading-relaxed mt-3 ${styles[tone]}`} role={tone === 'error' ? 'alert' : 'status'}>
+      {tone === 'success' ? '✓ ' : ''}
+      {children}
+    </p>
+  );
+}
+
 function SignInCard() {
+  // Single progressive flow: email → (code if MFA) → (phone setup if required) → done.
+  const [step, setStep] = useState<Step>('email');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<{ tone: Tone; text: ReactNode } | null>(null);
+
   const [email, setEmail] = useState('');
-  const [status, setStatus] = useState<'idle' | 'sending' | 'done' | 'error' | 'mfa' | 'setup'>('idle');
-  const [message, setMessage] = useState('');
   const [session, setSession] = useState<AuthSession | null>(null);
   const [challenge, setChallenge] = useState<MfaChallenge | null>(null);
   const [code, setCode] = useState('');
+
   // SMS enrollment (shown when a privileged role has no MFA yet)
   const [setupPhone, setSetupPhone] = useState('');
-  const [setupStep, setSetupStep] = useState<'phone' | 'code'>('phone');
+  const [setupStep, setSetupStep] = useState<SetupStep>('phone');
   const [setupCode, setSetupCode] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
 
-  const showSuccess = (s: AuthSession, prefix: string) => {
+  const showSuccess = (s: AuthSession) => {
     setSession(s);
-    setStatus('done');
-    setMessage(
-      s.created
-        ? `${prefix} ${s.user.email}${s.user.name ? ` (${s.user.name})` : ''} — you're signed in. Your session lasts 12 hours — open a feature page to get started.`
-        : `Signed in as ${s.user.email}${s.user.name ? ` (${s.user.name})` : ''}. Your session lasts 12 hours — open a feature page to get started.`
-    );
+    if (s.mfaSetupRequired) {
+      setStep('setup');
+      setSetupStep('phone');
+      setSetupCode('');
+      setMessage({
+        tone: 'success',
+        text: `You're signed in as ${s.user.email}${s.user.name ? ` (${s.user.name})` : ''}. One more step: add a phone number for two-step verification.`,
+      });
+      return;
+    }
+    setStep('done');
+    setMessage({
+      tone: 'success',
+      text: s.created
+        ? `New account created for ${s.user.email} — you're signed in.`
+        : `Signed in as ${s.user.email}${s.user.name ? ` (${s.user.name})` : ''}.`,
+    });
   };
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!email.trim()) return;
-    setStatus('sending');
-    setMessage('');
+    if (!email.trim() || busy) return;
+    setBusy(true);
+    setMessage(null);
     try {
       const result = await auth.passwordlessSignIn(email.trim());
       if (isMfaChallenge(result)) {
         setChallenge(result);
         setCode('');
-        setStatus('mfa');
+        setStep('mfa');
         return;
       }
-      showSuccess(result, 'New account created for');
+      showSuccess(result);
     } catch (err) {
-      setStatus('error');
-      setMessage(err instanceof Error ? err.message : 'Sign-in failed');
+      setStep('email');
+      setMessage({ tone: 'error', text: err instanceof Error ? err.message : 'Sign-in failed' });
+    } finally {
+      setBusy(false);
     }
   }
 
   async function handleMfaVerify(e: React.FormEvent) {
     e.preventDefault();
-    if (!challenge || !/^\d{6}$/.test(code)) return;
-    setStatus('sending');
-    setMessage('');
+    if (!challenge || !/^\d{6}$/.test(code) || busy) return;
+    setBusy(true);
+    setMessage(null);
     try {
       const s = await auth.mfaVerify(challenge.challengeToken, code);
-      showSuccess(s, 'Account created for');
+      showSuccess(s);
     } catch (err) {
-      setStatus('mfa');
-      setMessage(err instanceof Error ? err.message : 'Verification failed');
+      setStep('mfa');
+      setMessage({ tone: 'error', text: err instanceof Error ? err.message : 'Verification failed' });
+    } finally {
+      setBusy(false);
     }
   }
 
   async function handleMfaResend() {
-    if (!challenge) return;
-    setStatus('sending');
-    setMessage('');
+    if (!challenge || busy || resendCooldown > 0) return;
+    setBusy(true);
+    setMessage(null);
     try {
       const r = await auth.mfaResend(challenge.challengeToken);
-      setStatus('mfa');
-      setMessage(r.deliveryChannel === 'email' ? `A new code was emailed to ${r.maskedEmail}.` : `A new code was texted to ${r.maskedPhone}.`);
+      setStep('mfa');
+      setResendCooldown(30);
+      setMessage({
+        tone: 'info',
+        text: r.deliveryChannel === 'email' ? `A new code was emailed to ${r.maskedEmail}.` : `A new code was texted to ${r.maskedPhone}.`,
+      });
     } catch (err) {
-      setStatus('mfa');
-      setMessage(err instanceof Error ? err.message : 'Could not resend the code');
+      setStep('mfa');
+      setMessage({ tone: 'error', text: err instanceof Error ? err.message : 'Could not resend the code' });
+    } finally {
+      setBusy(false);
     }
   }
 
   async function handleSetupSend(e: React.FormEvent) {
     e.preventDefault();
-    if (!setupPhone.trim()) return;
-    setStatus('sending');
-    setMessage('');
+    if (!setupPhone.trim() || busy) return;
+    setBusy(true);
+    setMessage(null);
     try {
       const r = await auth.mfaSetup(setupPhone.trim());
       setSetupStep('code');
       setSetupCode('');
-      setStatus('done');
+      setStep('setup');
       setMessage(
         r.deliveryChannel === 'email'
-          ? `Verification code emailed to ${r.maskedEmail}. Want codes by text instead? Text START to 14133509016 from your phone.`
-          : `Verification code sent to ${r.maskedPhone}. Enter it below.`
+          ? {
+              tone: 'info',
+              text: (
+                <>
+                  Verification code emailed to {r.maskedEmail}. Want codes by text instead?{' '}
+                  <a href={SMS_OPT_IN_LINK} className="font-semibold text-[var(--color-primary)] hover:text-[var(--color-secondary)] transition-colors">
+                    Text START to {SMS_OPT_IN_NUMBER}
+                  </a>{' '}
+                  from your phone — it opens your messaging app ready to send.
+                </>
+              ),
+            }
+          : { tone: 'info', text: `Verification code sent to ${r.maskedPhone}. Enter it below.` }
       );
     } catch (err) {
-      setStatus('done');
-      setMessage(err instanceof Error ? err.message : 'Setup failed');
+      setStep('setup');
+      setMessage({ tone: 'error', text: err instanceof Error ? err.message : 'Setup failed' });
+    } finally {
+      setBusy(false);
     }
   }
 
   async function handleSetupVerify(e: React.FormEvent) {
     e.preventDefault();
-    if (!/^\d{6}$/.test(setupCode)) return;
-    setStatus('sending');
-    setMessage('');
+    if (!/^\d{6}$/.test(setupCode) || busy) return;
+    setBusy(true);
+    setMessage(null);
     try {
       await auth.mfaVerifySetup(setupCode, setupPhone.trim());
       setSession(s => (s ? { ...s, mfaSetupRequired: false } : s));
-      setStatus('done');
-      setMessage('SMS verification enabled — future sign-ins will ask for a code from your phone.');
+      setStep('done');
+      setMessage({
+        tone: 'success',
+        text: 'Two-step verification is on. Future sign-ins will ask for a code sent to your phone.',
+      });
     } catch (err) {
-      setStatus('done');
-      setMessage(err instanceof Error ? err.message : 'Setup failed');
+      setStep('setup');
+      setMessage({ tone: 'error', text: err instanceof Error ? err.message : 'Setup failed' });
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -117,7 +193,7 @@ function SignInCard() {
     const token = new URLSearchParams(window.location.search).get('token');
     if (!token) return;
     let cancelled = false;
-    setStatus('sending');
+    setBusy(true);
     (async () => {
       try {
         const result = await auth.passwordlessVerify(token);
@@ -127,14 +203,16 @@ function SignInCard() {
         if (isMfaChallenge(result)) {
           setChallenge(result);
           setCode('');
-          setStatus('mfa');
+          setStep('mfa');
           return;
         }
-        showSuccess(result, 'Account confirmed for');
+        showSuccess(result);
       } catch (err) {
         if (cancelled) return;
-        setStatus('error');
-        setMessage(err instanceof Error ? err.message : 'Sign-in failed');
+        setStep('email');
+        setMessage({ tone: 'error', text: err instanceof Error ? err.message : 'Sign-in failed' });
+      } finally {
+        if (!cancelled) setBusy(false);
       }
     })();
     return () => {
@@ -142,72 +220,108 @@ function SignInCard() {
     };
   }, []);
 
-  const busy = status === 'sending';
+  // Countdown before the "resend code" link is re-enabled.
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setTimeout(() => setResendCooldown(c => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendCooldown]);
 
   return (
     <section className="card !p-6 md:!p-8 mb-6 border border-[var(--color-accent)]/30">
-      <h2 className="text-lg font-extrabold text-[var(--color-text)] mb-2">Passwordless sign-in</h2>
-      <p className="text-sm text-[var(--color-text-light)] leading-relaxed mb-4">
-        Enter your email and we&apos;ll send you a sign-in link — no password needed. If your email isn&apos;t on a care-circle account yet, we&apos;ll create one for you.
-      </p>
-
-      {status === 'mfa' && challenge ? (
-        <form onSubmit={handleMfaVerify} className="flex flex-col sm:flex-row gap-3 max-w-lg">
-          <input
-            required
-            autoFocus
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            pattern="[0-9]{6}"
-            maxLength={6}
-            value={code}
-            onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
-            placeholder="6-digit code"
-            className="field flex-1"
-          />
-          <button type="submit" disabled={busy} className="btn btn-primary text-sm">
-            {busy ? 'Verifying…' : 'Verify'}
-          </button>
-          <p className="text-xs text-[var(--color-text-light)] mt-1 sm:w-full">
-            {challenge.deliveryChannel === 'email'
-              ? `Enter the 6-digit code emailed to ${challenge.maskedEmail}. It can take a minute to arrive.`
-              : `Enter the 6-digit code texted to ${challenge.maskedPhone}. ${challenge.smsSent ? '' : 'The code could not be texted — it was emailed instead.'}`}
+      {step === 'email' && (
+        <>
+          <h2 className="text-lg font-extrabold text-[var(--color-text)] mb-2">Passwordless sign-in</h2>
+          <p className="text-sm text-[var(--color-text-light)] leading-relaxed mb-4">
+            Enter your email and we&apos;ll send you a sign-in link — no password needed. If your email isn&apos;t on a care-circle account yet, we&apos;ll create one for you.
           </p>
-          <button
-            type="button"
-            onClick={handleMfaResend}
-            disabled={busy}
-            className="text-xs font-semibold text-[var(--color-primary)] hover:text-[var(--color-secondary)] mt-2 self-start transition-colors"
-          >
-            Didn&apos;t get the code? Send it again
-          </button>
-        </form>
-      ) : (
-        <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3 max-w-lg">
-          <input
-            required
-            type="email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            className="field flex-1"
-          />
-          <button type="submit" disabled={busy} className="btn btn-primary text-sm">
-            {busy ? 'Sending…' : 'Sign in with email'}
-          </button>
-        </form>
+          <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3 max-w-lg">
+            <input
+              required
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              className="field flex-1"
+            />
+            <button type="submit" disabled={busy} className="btn btn-primary text-sm">
+              {busy ? 'Sending…' : 'Sign in with email'}
+            </button>
+          </form>
+          {message && <StatusLine tone={message.tone}>{message.text}</StatusLine>}
+        </>
       )}
 
-      {status === 'setup' && (
-        <div className="mt-4 max-w-lg">
+      {step === 'mfa' && challenge && (
+        <>
+          <StepLabel n={2} total={2} label="Verify your code" />
+          <h2 className="text-lg font-extrabold text-[var(--color-text)] mb-2">Check your phone</h2>
+          <p className="text-sm text-[var(--color-text-light)] leading-relaxed mb-4">
+            {challenge.deliveryChannel === 'email'
+              ? `We emailed a 6-digit code to ${challenge.maskedEmail}. It can take a minute to arrive.`
+              : `We texted a 6-digit code to ${challenge.maskedPhone}. ${challenge.smsSent ? '' : 'Texting isn\u2019t available yet, so we emailed it instead.'}`}
+          </p>
+          <form onSubmit={handleMfaVerify} className="flex flex-col sm:flex-row gap-3 max-w-lg">
+            <input
+              required
+              autoFocus
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="[0-9]{6}"
+              maxLength={6}
+              value={code}
+              onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
+              placeholder="••••••"
+              className="field flex-1 text-center text-lg tracking-[0.4em]"
+            />
+            <button type="submit" disabled={busy || code.length !== 6} className="btn btn-primary text-sm">
+              {busy ? 'Verifying…' : 'Verify'}
+            </button>
+          </form>
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 max-w-lg">
+            <button
+              type="button"
+              onClick={handleMfaResend}
+              disabled={busy || resendCooldown > 0}
+              className="text-xs font-semibold text-[var(--color-primary)] hover:text-[var(--color-secondary)] transition-colors"
+            >
+              {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Didn\u2019t get the code? Send it again'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setStep('email');
+                setChallenge(null);
+                setCode('');
+                setMessage(null);
+              }}
+              className="text-xs font-medium text-[var(--color-text-light)] hover:text-[var(--color-text)] transition-colors"
+            >
+              Not you? Use a different email
+            </button>
+          </div>
+          {message && <StatusLine tone={message.tone}>{message.text}</StatusLine>}
+        </>
+      )}
+
+      {step === 'setup' && (
+        <>
+          <StepLabel n={2} total={2} label="Two-step verification" />
+          <h2 className="text-lg font-extrabold text-[var(--color-text)] mb-2">Secure your account</h2>
+          <p className="text-sm text-[var(--color-text-light)] leading-relaxed mb-4">
+            Your role can access care information, so we ask you to add a phone number. Sign-in will then require a code — texted to your phone, or emailed to you if texting isn&apos;t available yet.
+          </p>
           {setupStep === 'phone' ? (
-            <form onSubmit={handleSetupSend} className="flex flex-col sm:flex-row gap-3">
+            <form onSubmit={handleSetupSend} className="flex flex-col sm:flex-row gap-3 max-w-lg">
               <input
                 required
                 type="tel"
+                inputMode="tel"
+                autoComplete="tel"
                 value={setupPhone}
                 onChange={e => setSetupPhone(e.target.value)}
-                placeholder="6175003450"
+                placeholder="617-500-3450"
                 className="field flex-1"
               />
               <button type="submit" disabled={busy} className="btn btn-primary text-sm">
@@ -215,7 +329,7 @@ function SignInCard() {
               </button>
             </form>
           ) : (
-            <form onSubmit={handleSetupVerify} className="flex flex-col sm:flex-row gap-3">
+            <form onSubmit={handleSetupVerify} className="flex flex-col sm:flex-row gap-3 max-w-lg">
               <input
                 required
                 autoFocus
@@ -224,73 +338,49 @@ function SignInCard() {
                 maxLength={6}
                 value={setupCode}
                 onChange={e => setSetupCode(e.target.value.replace(/\D/g, ''))}
-                placeholder="6-digit code"
-                className="field flex-1"
+                placeholder="••••••"
+                className="field flex-1 text-center text-lg tracking-[0.4em]"
               />
-              <button type="submit" disabled={busy} className="btn btn-primary text-sm">
-                {busy ? 'Verifying…' : 'Enable SMS verification'}
+              <button type="submit" disabled={busy || setupCode.length !== 6} className="btn btn-primary text-sm">
+                {busy ? 'Verifying…' : 'Enable two-step verification'}
               </button>
             </form>
           )}
-        </div>
+          <p className="text-xs text-[var(--color-text-light)] mt-2 max-w-lg">
+            US numbers work with or without +1 — e.g. 617-500-3450.
+          </p>
+          {setupStep === 'code' && (
+            <button
+              type="button"
+              onClick={() => setSetupStep('phone')}
+              className="mt-2 text-xs font-medium text-[var(--color-text-light)] hover:text-[var(--color-text)] transition-colors"
+            >
+              ← Use a different phone number
+            </button>
+          )}
+          {message && <StatusLine tone={message.tone}>{message.text}</StatusLine>}
+        </>
       )}
 
-      {status === 'done' && !session?.mfaSetupRequired && (
-        <p className="mt-3 text-xs font-semibold text-[#065f46] bg-[#d1fae5] px-3 py-2 rounded-md inline-block">✓ {message}</p>
-      )}
-      {session?.mfaSetupRequired && (
-        <div className="mt-3">
-          {status === 'done' && !message.startsWith('Signed in') && (
-            <p className="text-xs font-semibold text-[#065f46] bg-[#d1fae5] px-3 py-2 rounded-md inline-block">✓ {message}</p>
-          )}
-          <div className="mt-3 card !p-4 border border-[var(--color-accent)]/20">
-            <p className="text-sm font-bold text-[var(--color-text)] mb-1">Set up two-step verification (recommended)</p>
-            <p className="text-xs text-[var(--color-text-light)] mb-3">
-              Your role can access care information, so we ask you to secure the account with a phone number. Sign-in will then require a code — texted to your phone, or emailed to you if texting isn&apos;t available yet.
-            </p>
-            {message && !message.startsWith('Signed in') && (
-              <p className="mb-3 text-xs font-semibold text-[#065f46] bg-[#d1fae5] px-3 py-2 rounded-md inline-block">{message}</p>
-            )}
-            {status === 'error' && (
-              <p className="mb-3 text-xs font-semibold text-[#991b1b] bg-[#fef2f2] px-3 py-2 rounded-md inline-block">{message}</p>
-            )}
-            <form onSubmit={handleSetupSend} className="flex flex-col sm:flex-row gap-3">
-              <input
-                required
-                type="tel"
-                value={setupPhone}
-                onChange={e => setSetupPhone(e.target.value)}
-                placeholder="6175003450"
-                className="field flex-1"
-              />
-              <button type="submit" disabled={busy} className="btn btn-primary text-sm">
-                {busy ? 'Sending…' : 'Send code'}
-              </button>
-            </form>
-            {setupStep === 'code' && (
-              <form onSubmit={handleSetupVerify} className="flex flex-col sm:flex-row gap-3 mt-3">
-                <input
-                  required
-                  autoFocus
-                  inputMode="numeric"
-                  pattern="[0-9]{6}"
-                  maxLength={6}
-                  value={setupCode}
-                  onChange={e => setSetupCode(e.target.value.replace(/\D/g, ''))}
-                  placeholder="6-digit code"
-                  className="field flex-1"
-                />
-                <button type="submit" disabled={busy} className="btn btn-primary text-sm">
-                  {busy ? 'Verifying…' : 'Enable SMS verification'}
-                </button>
-              </form>
-            )}
-            <p className="mt-2 text-xs text-[var(--color-text-light)]">{message}</p>
+      {step === 'done' && session && (
+        <div className="rounded-xl bg-[#d1fae5] border border-[#065f46]/25 p-5 md:p-6">
+          <p className="flex items-center gap-2 text-base font-extrabold text-[#065f46]">
+            <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+            </svg>
+            You&apos;re signed in
+          </p>
+          {message && <p className="mt-1 text-sm text-[#065f46] leading-relaxed">{message.text}</p>}
+          <div className="mt-4 flex flex-wrap items-center gap-4">
+            <Link href="/features/cases/" className="btn btn-primary btn-sm">
+              Continue to your care circle
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+              </svg>
+            </Link>
+            <span className="text-xs text-[#065f46]">Your session lasts 12 hours.</span>
           </div>
         </div>
-      )}
-      {status === 'error' && (
-        <p className="mt-3 text-xs font-semibold text-[#991b1b] bg-[#fef2f2] px-3 py-2 rounded-md inline-block">{message}</p>
       )}
     </section>
   );

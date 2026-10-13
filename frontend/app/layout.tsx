@@ -3,6 +3,7 @@ import './globals.css';
 import SiteNav from './SiteNav';
 import Footer from './Footer';
 import ConsentBanner from './ConsentBanner';
+import CtaTracker from './CtaTracker';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://assistedly.ai'),
@@ -120,6 +121,7 @@ export default function RootLayout({
         </main>
         <Footer />
         <ConsentBanner />
+        <CtaTracker />
       </body>
     </html>
   );

@@ -123,6 +123,16 @@ function maskPhone(p) {
   if (!p) return '';
   return p.replace(/^(\+\d{1,3})(\d+)(\d{4})$/, '$1****$3');
 }
+// Accept friendly input for the low-tech audience: "6175003450" (US 10-digit),
+// "16175003450" (US with leading 1), or full E.164 "+16175003450". Returns E.164.
+function normalizePhone(raw) {
+  const p = String(raw || '').replace(/[\s()-]/g, '');
+  if (!p) return null;
+  if (p.startsWith('+')) return /^\+[1-9]\d{1,14}$/.test(p) ? p : null;
+  if (/^\d{10}$/.test(p)) return '+1' + p;
+  if (/^1\d{10}$/.test(p)) return '+' + p;
+  return null;
+}
 async function issueMfaCode(env, userId, phone) {
   // Replace any pending code for this user (one active code per user).
   await exec(env, 'DELETE FROM mfa_otps WHERE user_id = ?', [userId]);
@@ -640,8 +650,8 @@ async function handleApi(request, env, url) {
     if (!user) return unauthorized();
     if (Number(user.mfa_enabled)) return json({ error: 'MFA is already enabled for this account.' }, 409);
     const body = await request.json().catch(() => ({}));
-    const phone = String(body.phone || '').replace(/[\s()-]/g, '');
-    if (!/^\+[1-9]\d{1,14}$/.test(phone)) return badRequest('Enter a phone number in international format, e.g. +14155550123');
+    const phone = normalizePhone(body.phone);
+    if (!phone) return badRequest('Enter a US phone number like 6175003450, or an international number like +442079460958');
     const setupLimit = rateLimit(`mfa:setup:${reqIp(request)}`, { limit: 5, windowMs: 60 * 60 * 1000 });
     if (!setupLimit.allowed) return json({ error: 'Too many setup attempts. Try again later.' }, 429);
     const { sent } = await issueMfaCode(env, user.id, phone);
@@ -660,8 +670,8 @@ async function handleApi(request, env, url) {
     if (!/^\d{6}$/.test(code)) return badRequest('Enter the 6-digit code from the text message');
     const res = await verifyMfaCode(env, user.id, code);
     if (!res.ok) return json({ error: res.error }, 400);
-    const phone = String(body.phone || '').replace(/[\s()-]/g, '');
-    if (!phone || !/^\+[1-9]\d{1,14}$/.test(phone)) return badRequest('Phone number is required in international format');
+    const phone = normalizePhone(body.phone);
+    if (!phone) return badRequest('Enter a US phone number like 6175003450, or an international number like +442079460958');
     await exec(env, 'UPDATE users SET phone = ?, mfa_enabled = 1 WHERE id = ?', [phone, user.id]);
     await audit(env, null, 'auth.mfa.enabled', { details: { phone: maskPhone(phone) } }, user.id);
     return json({ success: true, mfaEnabled: true });

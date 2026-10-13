@@ -83,10 +83,10 @@ function SignInCard() {
       const r = await auth.mfaSetup(setupPhone.trim());
       setSetupStep('code');
       setSetupCode('');
-      setStatus('setup');
-      setMessage(`Verification code sent to ${r.maskedPhone}.`);
+      setStatus('done');
+      setMessage(`Verification code sent to ${r.maskedPhone}. Enter it below.`);
     } catch (err) {
-      setStatus('setup');
+      setStatus('done');
       setMessage(err instanceof Error ? err.message : 'Setup failed');
     }
   }
@@ -98,10 +98,11 @@ function SignInCard() {
     setMessage('');
     try {
       await auth.mfaVerifySetup(setupCode, setupPhone.trim());
+      setSession(s => (s ? { ...s, mfaSetupRequired: false } : s));
       setStatus('done');
       setMessage('SMS verification enabled — future sign-ins will ask for a code from your phone.');
     } catch (err) {
-      setStatus('setup');
+      setStatus('done');
       setMessage(err instanceof Error ? err.message : 'Setup failed');
     }
   }
@@ -200,7 +201,7 @@ function SignInCard() {
                 type="tel"
                 value={setupPhone}
                 onChange={e => setSetupPhone(e.target.value)}
-                placeholder="+14155550123"
+                placeholder="6175003450"
                 className="field flex-1"
               />
               <button type="submit" disabled={busy} className="btn btn-primary text-sm">
@@ -231,21 +232,29 @@ function SignInCard() {
       {status === 'done' && !session?.mfaSetupRequired && (
         <p className="mt-3 text-xs font-semibold text-[#065f46] bg-[#d1fae5] px-3 py-2 rounded-md inline-block">✓ {message}</p>
       )}
-      {status === 'done' && session?.mfaSetupRequired && (
+      {session?.mfaSetupRequired && (
         <div className="mt-3">
-          <p className="text-xs font-semibold text-[#065f46] bg-[#d1fae5] px-3 py-2 rounded-md inline-block">✓ {message}</p>
+          {status === 'done' && !message.startsWith('Signed in') && (
+            <p className="text-xs font-semibold text-[#065f46] bg-[#d1fae5] px-3 py-2 rounded-md inline-block">✓ {message}</p>
+          )}
           <div className="mt-3 card !p-4 border border-[var(--color-accent)]/20">
             <p className="text-sm font-bold text-[var(--color-text)] mb-1">Set up SMS verification (recommended)</p>
             <p className="text-xs text-[var(--color-text-light)] mb-3">
               Your role can access care information, so we ask you to secure the account with a phone number. Sign-in will then require a texted code.
             </p>
+            {message && !message.startsWith('Signed in') && (
+              <p className="mb-3 text-xs font-semibold text-[#065f46] bg-[#d1fae5] px-3 py-2 rounded-md inline-block">{message}</p>
+            )}
+            {status === 'error' && (
+              <p className="mb-3 text-xs font-semibold text-[#991b1b] bg-[#fef2f2] px-3 py-2 rounded-md inline-block">{message}</p>
+            )}
             <form onSubmit={handleSetupSend} className="flex flex-col sm:flex-row gap-3">
               <input
                 required
                 type="tel"
                 value={setupPhone}
                 onChange={e => setSetupPhone(e.target.value)}
-                placeholder="+14155550123"
+                placeholder="6175003450"
                 className="field flex-1"
               />
               <button type="submit" disabled={busy} className="btn btn-primary text-sm">

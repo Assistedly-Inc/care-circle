@@ -233,7 +233,7 @@ function SignInCard() {
         <>
           <h2 className="text-lg font-extrabold text-[var(--color-text)] mb-2">Passwordless sign-in</h2>
           <p className="text-sm text-[var(--color-text-light)] leading-relaxed mb-4">
-            Enter your email and we&apos;ll send you a sign-in link — no password needed. If your email isn&apos;t on a care-circle account yet, we&apos;ll create one for you.
+            Enter your email and we&apos;ll send you a sign-in link — no password needed. If your email isn&apos;t on a Assistedly Cares account yet, we&apos;ll create one for you.
           </p>
           <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3 max-w-lg">
             <input

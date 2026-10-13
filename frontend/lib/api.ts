@@ -1,4 +1,4 @@
-// API client for care-circle backend
+// API client for Assistedly Cares backend
 // Matches routes from backend/src/api (Express + Prisma, JWT bearer auth)
 
 import type {

@@ -1,4 +1,4 @@
-// Care Circle — Cloudflare Worker (D1-backed)
+// Assistedly Cares — Cloudflare Worker (D1-backed)
 // Consolidates the KV "CareProfile" blob into D1. A "case" row holds the full
 // CareProfile document in `data` (JSON), preserving the exact shape the frontend
 // expects. users/case_members/case_invitations/audit_log are relational.
@@ -138,7 +138,7 @@ async function issueMfaCode(env, userId, phone, opts = {}) {
   await exec(env, 'DELETE FROM mfa_otps WHERE user_id = ?', [userId]);
   const code = randomDigits(6);
   const h = await sha256Hex(code);
-  const smsText = `Your Care Circle verification code is ${code}. It expires in 10 minutes. Don't share this code with anyone.`;
+  const smsText = `Your Assistedly Cares verification code is ${code}. It expires in 10 minutes. Don't share this code with anyone.`;
   // One-tap opt-in for text delivery: the sms: URI opens the recipient's
   // messaging app pre-filled with START to our number (US 10DLC opt-in).
   const optInNumber = env.SMS_OPT_IN_NUMBER || '+14133509016';
@@ -146,10 +146,10 @@ async function issueMfaCode(env, userId, phone, opts = {}) {
   const smsLink = `sms:${optInDigits}?body=START`;
   const emailBody = {
     to: opts.fallbackEmail,
-    subject: 'Your Care Circle verification code',
-    text: `Your Care Circle verification code is ${code}. It expires in 10 minutes. If you didn't request this, you can ignore this email.
+    subject: 'Your Assistedly Cares verification code',
+    text: `Your Assistedly Cares verification code is ${code}. It expires in 10 minutes. If you didn't request this, you can ignore this email.
 \nPrefer codes by text? Open this link on your phone (or text START to ${optInNumber}): ${smsLink}`,
-    html: `<p>Your <strong>Care Circle</strong> verification code is:</p><p style="font-size:28px;font-weight:700;letter-spacing:4px">${code}</p><p style="color:#6b7280;font-size:13px">It expires in 10 minutes. If you didn't request this, you can ignore this email.</p>
+    html: `<p>Your <strong>Assistedly Cares</strong> verification code is:</p><p style="font-size:28px;font-weight:700;letter-spacing:4px">${code}</p><p style="color:#6b7280;font-size:13px">It expires in 10 minutes. If you didn't request this, you can ignore this email.</p>
 <p style="margin-top:18px;padding-top:14px;border-top:1px solid #e5e7eb;font-size:13px;color:#6b7280">Prefer codes by text? <a href="${smsLink}" style="color:#4a7c7e;font-weight:600">Tap here to text START to ${optInNumber}</a> from your phone — it opens your messaging app ready to send.</p>`,
   };
   let channel = 'sms';
@@ -233,7 +233,7 @@ async function inkboxSendSms(env, to, message) {
 // Turn an Inkbox failure into a human-readable message for the user.
 function smsErrorMessage(sent) {
   const code = sent?.detail?.code || sent?.detail?.error?.code || sent?.detail?.error?.error?.code || '';
-  if (code === 'recipient_not_opted_in') return 'This number must opt in to receive texts from Care Circle first — send the word HELP or reply to our number once, then try again.';
+  if (code === 'recipient_not_opted_in') return 'This number must opt in to receive texts from Assistedly Cares first — send the word HELP or reply to our number once, then try again.';
   if (code === 'recipient_opted_out') return 'This number has opted out of text messages.';
   if (code === 'sender_sms_pending') return 'Our text number is still warming up — please try again in about 15 minutes.';
   if (code === 'sender_not_ready') return 'Our text number is not ready yet — please try again shortly.';
@@ -649,13 +649,13 @@ async function handleApi(request, env, url) {
     const twoStepHtml = `<p style="margin-top:18px;padding-top:14px;border-top:1px solid #e5e7eb;font-size:13px;color:#6b7280"><strong>Two-step verification:</strong> after signing in you'll be asked to add a phone number so each sign-in is confirmed with a code texted to you. <a href="${smsLink}" style="color:#4a7c7e;font-weight:600">Tap here to text START to ${optInNumber}</a> from your phone so it can receive codes.</p>`;
     const emailResult = await resendSendEmail(env, {
       to: email,
-      subject: created ? 'Confirm your Care Circle account' : 'Your Care Circle sign-in link',
+      subject: created ? 'Confirm your Assistedly Cares account' : 'Your Assistedly Cares sign-in link',
       text: created
-        ? `Hi ${user.name},\n\nWe created a Care Circle account for ${email}. Confirm your account and sign in by opening this link:\n\n${magicUrl}\n\nThis link expires in 10 minutes. If you didn't request this, you can ignore this email.${twoStepText}`
-        : `Hi ${user.name},\n\nSign in to Care Circle by opening this link:\n\n${magicUrl}\n\nThis link expires in 10 minutes. If you didn't request this, you can ignore this email.${twoStepText}`,
+        ? `Hi ${user.name},\n\nWe created a Assistedly Cares account for ${email}. Confirm your account and sign in by opening this link:\n\n${magicUrl}\n\nThis link expires in 10 minutes. If you didn't request this, you can ignore this email.${twoStepText}`
+        : `Hi ${user.name},\n\nSign in to Assistedly Cares by opening this link:\n\n${magicUrl}\n\nThis link expires in 10 minutes. If you didn't request this, you can ignore this email.${twoStepText}`,
       html: created
-        ? `<p>Hi ${user.name},</p><p>We created a <strong>Care Circle</strong> account for ${email}. Confirm your account and sign in with the button below.</p><p style="margin:24px 0"><a href="${magicUrl}" style="background:#4a7c7e;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600">Confirm and sign in</a></p><p style="color:#6b7280;font-size:13px">This link expires in 10 minutes. If you didn't request this, you can ignore this email.</p>${twoStepHtml}`
-        : `<p>Hi ${user.name},</p><p>Sign in to <strong>Care Circle</strong> with the button below.</p><p style="margin:24px 0"><a href="${magicUrl}" style="background:#4a7c7e;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600">Sign in to Care Circle</a></p><p style="color:#6b7280;font-size:13px">This link expires in 10 minutes. If you didn't request this, you can ignore this email.</p>${twoStepHtml}`,
+        ? `<p>Hi ${user.name},</p><p>We created a <strong>Assistedly Cares</strong> account for ${email}. Confirm your account and sign in with the button below.</p><p style="margin:24px 0"><a href="${magicUrl}" style="background:#4a7c7e;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600">Confirm and sign in</a></p><p style="color:#6b7280;font-size:13px">This link expires in 10 minutes. If you didn't request this, you can ignore this email.</p>${twoStepHtml}`
+        : `<p>Hi ${user.name},</p><p>Sign in to <strong>Assistedly Cares</strong> with the button below.</p><p style="margin:24px 0"><a href="${magicUrl}" style="background:#4a7c7e;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600">Sign in to Assistedly Cares</a></p><p style="color:#6b7280;font-size:13px">This link expires in 10 minutes. If you didn't request this, you can ignore this email.</p>${twoStepHtml}`,
     });
     return json({
       ok: true,
@@ -1475,7 +1475,7 @@ async function handleApi(request, env, url) {
     }
     if (body.to) { for (const e of (Array.isArray(body.to) ? body.to : [body.to])) if (e) to.push(e); }
     if (!to.length) return badRequest('No recipient email (case has no contact emails, and no "to" provided)');
-    const result = await resendSendEmail(env, { to: [...new Set(to)], subject: subject || 'Care Circle update', text: text || '', html: html || '' });
+    const result = await resendSendEmail(env, { to: [...new Set(to)], subject: subject || 'Assistedly Cares update', text: text || '', html: html || '' });
     await audit(env, caseId || null, 'notify.email', { to: [...new Set(to)], ok: result.ok }, user.id);
     return json(result.ok ? { success: true, ...result } : { success: false, ...result }, result.ok ? 200 : 502);
   }

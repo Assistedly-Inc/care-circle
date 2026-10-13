@@ -1,4 +1,4 @@
-# Care Circle — Post-Discharge Care Workspace
+# Assistedly Cares — Post-Discharge Care Workspace
 
 ## Backend (/care-circle/backend/)
 - API: Cases, Tasks, Medications, Auth, Invitations (Phase 1)

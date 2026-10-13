@@ -22,7 +22,7 @@ function generateInvitationToken(): string {
 function generateInvitationUrl(config: InviteConfig): { url: string; token: string; expiresAt: Date } {
   const token = generateInvitationToken();
   const expiresAt = new Date(Date.now() + INVITE_TOKEN_EXPIRY_HOURS * 60 * 60 * 1000);
-  const url = `${config.baseUrl || process.env.BASE_URL || 'https://carecircle.com'}invitations/${token}/accept?role=${config.role}`;
+  const url = `${config.baseUrl || process.env.BASE_URL || 'https://assistedly.ai'}invitations/${token}/accept?role=${config.role}`;
 
   return { url, token, expiresAt };
 }
@@ -38,35 +38,35 @@ export async function sendInvitationEmail(config: InviteConfig): Promise<{ succe
 
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #2c5282;">Care Circle Invitation</h1>
+        <h1 style="color: #2c5282;">Assistedly Cares Invitation</h1>
         <p>Hello,</p>
-        <p>You've been invited to join as a <strong>${config.role}</strong> in the Care Circle case for your loved one.</p>
+        <p>You've been invited to join as a <strong>${config.role}</strong> in the Assistedly Cares case for your loved one.</p>
         <p>Click the button below to accept this invitation:</p>
         <p><a href="${url}" style="background-color: #2c5282; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">Accept Invitation</a></p>
         <p>This invitation will expire on ${expiresAtFormatted}.</p>
-        <p style="font-size: 12px; color: #666;">Note: This email was sent on behalf of a Care Circle member. DO NOT disclose any sensitive information.</p>
+        <p style="font-size: 12px; color: #666;">Note: This email was sent on behalf of a Assistedly Cares member. DO NOT disclose any sensitive information.</p>
       </div>
     `;
 
     const text = `
-      Care Circle Invitation
+      Assistedly Cares Invitation
 
       Hello,
 
-      You've been invited to join as a ${config.role} in the Care Circle case for your loved one.
+      You've been invited to join as a ${config.role} in the Assistedly Cares case for your loved one.
 
       To accept this invitation, click the link below:
       ${url}
 
       This invitation will expire on ${expiresAtFormatted}.
 
-      Note: This email was sent on behalf of a Care Circle member. DO NOT disclose any sensitive information.
+      Note: This email was sent on behalf of a Assistedly Cares member. DO NOT disclose any sensitive information.
     `;
 
     const { data, error } = await resend.emails.send({
-      from: process.env.SUPPORT_EMAIL || 'Care Circle <support@carecircle.com>',
+      from: process.env.SUPPORT_EMAIL || 'Assistedly Cares <support@assistedly.ai>',
       to: config.email,
-      subject: `Care Circle - Invitation to Join`,
+      subject: `Assistedly Cares - Invitation to Join`,
       html,
       text
     });

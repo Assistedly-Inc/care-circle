@@ -1,4 +1,4 @@
-# Care Circle backend (Cloudflare Worker + D1)
+# Assistedly Cares backend (Cloudflare Worker + D1)
 
 Deployed to `care-backend-mvp` (`wrangler deploy` from this directory).
 

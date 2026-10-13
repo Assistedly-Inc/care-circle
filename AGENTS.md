@@ -1,4 +1,4 @@
-# Agent Rules — Care Circle
+# Agent Rules — Assistedly Cares
 
 ## Infrastructure Policy (binding)
 

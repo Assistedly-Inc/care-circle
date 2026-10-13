@@ -52,6 +52,7 @@ function SignInCard() {
   const [setupStep, setSetupStep] = useState<SetupStep>('phone');
   const [setupCode, setSetupCode] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [mfaChannel, setMfaChannel] = useState<'sms' | 'email'>('sms');
 
   const showSuccess = (s: AuthSession) => {
     setSession(s);
@@ -117,7 +118,7 @@ function SignInCard() {
     setBusy(true);
     setMessage(null);
     try {
-      const r = await auth.mfaResend(challenge.challengeToken);
+      const r = await auth.mfaResend(challenge.challengeToken, mfaChannel);
       setStep('mfa');
       setResendCooldown(30);
       setMessage({
@@ -127,6 +128,24 @@ function SignInCard() {
     } catch (err) {
       setStep('mfa');
       setMessage({ tone: 'error', text: err instanceof Error ? err.message : 'Could not resend the code' });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // User toggled between SMS and email delivery — resend on the chosen channel.
+  async function handleMfaChannelChange(channel: 'sms' | 'email') {
+    if (!challenge || channel === mfaChannel || busy) return;
+    setMfaChannel(channel);
+    setBusy(true);
+    setMessage(null);
+    try {
+      const r = await auth.mfaResend(challenge.challengeToken, channel);
+      setChallenge(c => (c ? { ...c, maskedPhone: r.maskedPhone, maskedEmail: r.maskedEmail, deliveryChannel: r.deliveryChannel, smsSent: r.smsSent } : c));
+      setResendCooldown(30);
+      setMessage({ tone: 'info', text: r.deliveryChannel === 'email' ? `A new code was emailed to ${r.maskedEmail}.` : `A new code was texted to ${r.maskedPhone}.` });
+    } catch (err) {
+      setMessage({ tone: 'error', text: err instanceof Error ? err.message : 'Could not send the code that way' });
     } finally {
       setBusy(false);
     }
@@ -270,12 +289,32 @@ function SignInCard() {
       {step === 'mfa' && challenge && (
         <>
           <StepLabel n={2} total={2} label="Verify your code" />
-          <h2 className="text-lg font-extrabold text-[var(--color-text)] mb-2">Check your phone</h2>
-          <p className="text-sm text-[var(--color-text-light)] leading-relaxed mb-4">
-            {challenge.deliveryChannel === 'email'
-              ? `We emailed a 6-digit code to ${challenge.maskedEmail}. It can take a minute to arrive.`
-              : `We texted a 6-digit code to ${challenge.maskedPhone}. ${challenge.smsSent ? '' : 'Texting isn\u2019t available yet, so we emailed it instead.'}`}
-          </p>
+          <h2 className="text-lg font-extrabold text-[var(--color-text)] mb-2">Enter your code</h2>
+          <div className="mb-4 max-w-lg" role="group" aria-label="How would you like to receive your code?">
+            <div className="flex rounded-lg overflow-hidden border border-[var(--color-accent)]/30 w-fit">
+              <button
+                type="button"
+                onClick={() => handleMfaChannelChange('sms')}
+                disabled={busy}
+                className={`px-3 py-1.5 text-xs font-semibold transition-colors ${mfaChannel === 'sms' ? 'bg-[var(--color-primary)] text-white' : 'text-[var(--color-text-light)] hover:text-[var(--color-text)]'}`}
+              >
+                📱 Text me a code
+              </button>
+              <button
+                type="button"
+                onClick={() => handleMfaChannelChange('email')}
+                disabled={busy}
+                className={`px-3 py-1.5 text-xs font-semibold transition-colors ${mfaChannel === 'email' ? 'bg-[var(--color-primary)] text-white' : 'text-[var(--color-text-light)] hover:text-[var(--color-text)]'}`}
+              >
+                ✉️ Email me a code
+              </button>
+            </div>
+            <p className="text-xs text-[var(--color-text-light)] mt-2">
+              {challenge.deliveryChannel === 'email'
+                ? `We emailed the code to ${challenge.maskedEmail}. Switch to SMS if you'd rather get texts.`
+                : `We texted the code to ${challenge.maskedPhone}. Switch to email if you'd rather get it there.`}
+            </p>
+          </div>
           <form onSubmit={handleMfaVerify} className="flex flex-col sm:flex-row gap-3 max-w-lg">
             <input
               required

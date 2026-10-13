@@ -160,13 +160,20 @@ async function issueMfaCode(env, userId, phone, opts = {}) {
     text: `Your Assistedly Cares verification code is ${code}. It expires in 10 minutes. If you didn't request this, you can ignore this email.${resendText}`,
     html: `<p>Your <strong>Assistedly Cares</strong> verification code is:</p><p style="font-size:28px;font-weight:700;letter-spacing:4px">${code}</p><p style="color:#6b7280;font-size:13px">It expires in 10 minutes. If you didn't request this, you can ignore this email.</p>${resendHtml}`,
   };
-  // SMS-first with email fallback so users are never locked out. When a text
-  // succeeds for an email-channel account, the caller flips mfa_channel to sms.
-  let channel = 'sms';
-  let sent = await inkboxSendSms(env, phone, smsText);
-  if (!sent.ok && opts.fallbackEmail) {
-    const e = await resendSendEmail(env, emailBody);
-    if (e.ok) { sent = e; channel = 'email'; }
+  // Default: SMS-first with email fallback so users are never locked out.
+  // When the user toggles to email (opts.channel === 'email'), email-first with
+  // SMS fallback. When a text succeeds, the caller flips mfa_channel to sms.
+  let channel = opts.channel === 'email' ? 'email' : 'sms';
+  let sent;
+  if (channel === 'email') {
+    if (opts.fallbackEmail) sent = await resendSendEmail(env, emailBody);
+    if (!sent?.ok) { sent = await inkboxSendSms(env, phone, smsText); if (sent.ok) channel = 'sms'; }
+  } else {
+    sent = await inkboxSendSms(env, phone, smsText);
+    if (!sent.ok && opts.fallbackEmail) {
+      const e = await resendSendEmail(env, emailBody);
+      if (e.ok) { sent = e; channel = 'email'; }
+    }
   }
   await exec(env, 'INSERT INTO mfa_otps (id, user_id, code_hash, expires_at, attempts, created_at, channel) VALUES (?,?,?,?,?,?,?)',
     [uid(), userId, h, new Date(Date.now() + MFA_CODE_TTL_MS).toISOString(), 0, now(), channel]);
@@ -785,7 +792,8 @@ async function handleApi(request, env, url) {
     if (!user || !Number(user.mfa_enabled) || !user.phone) return unauthorized('User not found');
     const sendLimit = rateLimit(`mfa:send:${user.id}`, { limit: 3, windowMs: 15 * 60 * 1000 });
     if (!sendLimit.allowed) return json({ error: 'Too many verification codes. Try again later.' }, 429);
-    const { sent, channel } = await issueMfaCode(env, user.id, user.phone, { fallbackEmail: user.email, challengeToken, appUrl: env.APP_URL || 'https://assistedly.ai' });
+    const chosen = body.channel === 'email' ? 'email' : 'sms';
+    const { sent, channel } = await issueMfaCode(env, user.id, user.phone, { fallbackEmail: user.email, challengeToken, appUrl: env.APP_URL || 'https://assistedly.ai', channel: chosen });
     if (channel !== (user.mfa_channel || 'sms')) {
       await exec(env, 'UPDATE users SET mfa_channel = ? WHERE id = ?', [channel, user.id]);
     }

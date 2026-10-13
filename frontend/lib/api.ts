@@ -139,10 +139,10 @@ export const auth = {
       method: 'POST',
       body: JSON.stringify(code ? { code } : {}),
     }),
-  mfaResend: (challengeToken: string) =>
+  mfaResend: (challengeToken: string, channel?: 'sms' | 'email') =>
     api<{ success: boolean; maskedPhone: string; maskedEmail?: string; deliveryChannel?: 'sms' | 'email'; smsSent: boolean }>('/api/auth/mfa/resend', {
       method: 'POST',
-      body: JSON.stringify({ challengeToken }),
+      body: JSON.stringify(channel ? { challengeToken, channel } : { challengeToken }),
     }),
 };
 

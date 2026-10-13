@@ -195,6 +195,13 @@ function SignInCard() {
     }
   }
 
+  // Optional enrollment: let users proceed without two-step for now.
+  function handleSkipSetup() {
+    setSession(s => (s ? { ...s, mfaSetupRequired: false } : s));
+    setStep('done');
+    setMessage({ tone: 'info', text: 'You can enable two-step verification anytime from the sign-in page.' });
+  }
+
   async function handleSetupVerify(e: React.FormEvent) {
     e.preventDefault();
     if (!/^\d{6}$/.test(setupCode) || busy) return;
@@ -412,15 +419,24 @@ function SignInCard() {
           <p className="text-xs text-[var(--color-text-light)] mt-2 max-w-lg">
             US numbers work with or without +1 — e.g. 617-500-3450.
           </p>
-          {setupStep === 'code' && (
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 max-w-lg">
+            {setupStep === 'code' && (
+              <button
+                type="button"
+                onClick={() => setSetupStep('phone')}
+                className="text-xs font-medium text-[var(--color-text-light)] hover:text-[var(--color-text)] transition-colors"
+              >
+                ← Use a different phone number
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => setSetupStep('phone')}
-              className="mt-2 text-xs font-medium text-[var(--color-text-light)] hover:text-[var(--color-text)] transition-colors"
+              onClick={handleSkipSetup}
+              className="text-xs font-semibold text-[var(--color-text-light)] hover:text-[var(--color-text)] transition-colors"
             >
-              ← Use a different phone number
+              Skip for now — enable later
             </button>
-          )}
+          </div>
           {message && <StatusLine tone={message.tone}>{message.text}</StatusLine>}
         </>
       )}

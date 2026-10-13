@@ -245,6 +245,7 @@ function smsErrorMessage(sent) {
   if (code === 'recipient_opted_out') return 'This number has opted out of text messages.';
   if (code === 'sender_sms_pending') return 'Our text number is still warming up — please try again in about 15 minutes.';
   if (code === 'sender_not_ready') return 'Our text number is not ready yet — please try again shortly.';
+  if (code === 'carrier_unavailable') return 'We could not verify this number with your carrier. Try a different phone number, or skip two-step for now.';
   return 'Could not send the verification code. Please try again later.';
 }
 

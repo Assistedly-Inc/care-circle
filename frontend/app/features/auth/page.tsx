@@ -67,7 +67,7 @@ function SignInCard() {
     try {
       const r = await auth.mfaResend(challenge.challengeToken);
       setStatus('mfa');
-      setMessage(`A new code was texted to ${r.maskedPhone}.`);
+      setMessage(r.deliveryChannel === 'email' ? `A new code was emailed to ${r.maskedEmail}.` : `A new code was texted to ${r.maskedPhone}.`);
     } catch (err) {
       setStatus('mfa');
       setMessage(err instanceof Error ? err.message : 'Could not resend the code');
@@ -165,7 +165,9 @@ function SignInCard() {
             {busy ? 'Verifying…' : 'Verify'}
           </button>
           <p className="text-xs text-[var(--color-text-light)] mt-1 sm:w-full">
-            Enter the 6-digit code texted to {challenge.maskedPhone}. {challenge.smsSent ? '' : 'The code could not be sent — try again in a moment.'}
+            {challenge.deliveryChannel === 'email'
+              ? `Enter the 6-digit code emailed to ${challenge.maskedEmail}. It can take a minute to arrive.`
+              : `Enter the 6-digit code texted to ${challenge.maskedPhone}. ${challenge.smsSent ? '' : 'The code could not be texted — it was emailed instead.'}`}
           </p>
           <button
             type="button"
@@ -238,9 +240,9 @@ function SignInCard() {
             <p className="text-xs font-semibold text-[#065f46] bg-[#d1fae5] px-3 py-2 rounded-md inline-block">✓ {message}</p>
           )}
           <div className="mt-3 card !p-4 border border-[var(--color-accent)]/20">
-            <p className="text-sm font-bold text-[var(--color-text)] mb-1">Set up SMS verification (recommended)</p>
+            <p className="text-sm font-bold text-[var(--color-text)] mb-1">Set up two-step verification (recommended)</p>
             <p className="text-xs text-[var(--color-text-light)] mb-3">
-              Your role can access care information, so we ask you to secure the account with a phone number. Sign-in will then require a texted code.
+              Your role can access care information, so we ask you to secure the account with a phone number. Sign-in will then require a code — texted to your phone, or emailed to you if texting isn&apos;t available yet.
             </p>
             {message && !message.startsWith('Signed in') && (
               <p className="mb-3 text-xs font-semibold text-[#065f46] bg-[#d1fae5] px-3 py-2 rounded-md inline-block">{message}</p>

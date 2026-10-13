@@ -133,16 +133,42 @@ function normalizePhone(raw) {
   if (/^1\d{10}$/.test(p)) return '+' + p;
   return null;
 }
-async function issueMfaCode(env, userId, phone) {
+async function issueMfaCode(env, userId, phone, opts = {}) {
   // Replace any pending code for this user (one active code per user).
   await exec(env, 'DELETE FROM mfa_otps WHERE user_id = ?', [userId]);
   const code = randomDigits(6);
   const h = await sha256Hex(code);
-  await exec(env, 'INSERT INTO mfa_otps (id, user_id, code_hash, expires_at, attempts, created_at) VALUES (?,?,?,?,?,?)',
-    [uid(), userId, h, new Date(Date.now() + MFA_CODE_TTL_MS).toISOString(), 0, now()]);
-  const sent = await inkboxSendSms(env, phone,
-    `Your Care Circle verification code is ${code}. It expires in 10 minutes. Don't share this code with anyone.`);
-  return { codeHash: h, sent };
+  const smsText = `Your Care Circle verification code is ${code}. It expires in 10 minutes. Don't share this code with anyone.`;
+  const emailBody = {
+    to: opts.fallbackEmail,
+    subject: 'Your Care Circle verification code',
+    text: `Your Care Circle verification code is ${code}. It expires in 10 minutes. If you didn't request this, you can ignore this email.`,
+    html: `<p>Your <strong>Care Circle</strong> verification code is:</p><p style="font-size:28px;font-weight:700;letter-spacing:4px">${code}</p><p style="color:#6b7280;font-size:13px">It expires in 10 minutes. If you didn't request this, you can ignore this email.</p>`,
+  };
+  let channel = 'sms';
+  let sent;
+  if (opts.primaryChannel === 'email' && opts.fallbackEmail) {
+    // Email-first account (SMS unavailable on the Inkbox plan): send by email.
+    sent = await resendSendEmail(env, emailBody);
+    channel = sent.ok ? 'email' : 'sms';
+    if (!sent.ok) sent = await inkboxSendSms(env, phone, smsText);
+  } else {
+    // SMS-first with email fallback so users are never locked out.
+    sent = await inkboxSendSms(env, phone, smsText);
+    if (!sent.ok && opts.fallbackEmail) {
+      const e = await resendSendEmail(env, emailBody);
+      if (e.ok) { sent = e; channel = 'email'; }
+    }
+  }
+  await exec(env, 'INSERT INTO mfa_otps (id, user_id, code_hash, expires_at, attempts, created_at, channel) VALUES (?,?,?,?,?,?,?)',
+    [uid(), userId, h, new Date(Date.now() + MFA_CODE_TTL_MS).toISOString(), 0, now(), channel]);
+  return { codeHash: h, sent, channel };
+}
+function maskEmail(e) {
+  if (!e) return '';
+  const [local, domain] = e.split('@');
+  if (!domain) return e;
+  return local.slice(0, 2) + '***@' + domain;
 }
 async function verifyMfaCode(env, userId, code) {
   const row = await qFirst(env, 'SELECT * FROM mfa_otps WHERE user_id = ? ORDER BY created_at DESC LIMIT 1', [userId]);
@@ -160,8 +186,9 @@ async function verifyMfaCode(env, userId, code) {
     await exec(env, 'UPDATE mfa_otps SET attempts = attempts + 1 WHERE id = ?', [row.id]);
     return { ok: false, error: 'Incorrect code.' };
   }
+  const channel = row.channel || 'sms';
   await exec(env, 'DELETE FROM mfa_otps WHERE id = ?', [row.id]);
-  return { ok: true };
+  return { ok: true, channel };
 }
 async function mfaChallengeToken(env, user) {
   return signJwt({ sub: user.id, purpose: 'mfa', scope: 'session' }, env.SESSION_SECRET || 'dev-secret', 300);
@@ -535,14 +562,16 @@ async function handleApi(request, env, url) {
       if (!user.phone) return json({ error: 'MFA is enabled but no phone number is on file. Contact support.' }, 400);
       const sendLimit = rateLimit(`mfa:send:${user.id}`, { limit: 3, windowMs: 15 * 60 * 1000 });
       if (!sendLimit.allowed) return json({ error: 'Too many verification codes. Try again later.' }, 429);
-      const { sent } = await issueMfaCode(env, user.id, user.phone);
-      await audit(env, null, 'auth.mfa.send', { details: { channel: 'sms', ok: sent.ok } }, user.id);
+      const { sent, channel } = await issueMfaCode(env, user.id, user.phone, { fallbackEmail: user.email, primaryChannel: user.mfa_channel });
+      await audit(env, null, 'auth.mfa.send', { details: { channel, ok: sent.ok } }, user.id);
       return json({
         mfaRequired: true,
         challengeToken: await mfaChallengeToken(env, user),
         expiresIn: 300,
         maskedPhone: maskPhone(user.phone),
-        smsSent: !!sent.ok,
+        maskedEmail: channel === 'email' ? maskEmail(user.email) : undefined,
+        deliveryChannel: channel,
+        smsSent: channel === 'sms' && !!sent.ok,
       });
     }
     const token = await signJwt({ sub: user.id, email: user.email, role: user.role }, env.SESSION_SECRET || 'dev-secret');
@@ -638,14 +667,16 @@ async function handleApi(request, env, url) {
       if (!user.phone) return json({ error: 'MFA is enabled but no phone number is on file. Contact support.' }, 400);
       const sendLimit = rateLimit(`mfa:send:${user.id}`, { limit: 3, windowMs: 15 * 60 * 1000 });
       if (!sendLimit.allowed) return json({ error: 'Too many verification codes. Try again later.' }, 429);
-      const { sent } = await issueMfaCode(env, user.id, user.phone);
-      await audit(env, null, 'auth.mfa.send', { details: { channel: 'sms', ok: sent.ok } }, user.id);
+      const { sent, channel } = await issueMfaCode(env, user.id, user.phone, { fallbackEmail: user.email, primaryChannel: user.mfa_channel });
+      await audit(env, null, 'auth.mfa.send', { details: { channel, ok: sent.ok } }, user.id);
       return json({
         mfaRequired: true,
         challengeToken: await mfaChallengeToken(env, user),
         expiresIn: 300,
         maskedPhone: maskPhone(user.phone),
-        smsSent: !!sent.ok,
+        maskedEmail: channel === 'email' ? maskEmail(user.email) : undefined,
+        deliveryChannel: channel,
+        smsSent: channel === 'sms' && !!sent.ok,
         created: !!payload.created,
       });
     }
@@ -671,10 +702,10 @@ async function handleApi(request, env, url) {
     if (!phone) return badRequest('Enter a US phone number like 6175003450, or an international number like +442079460958');
     const setupLimit = rateLimit(`mfa:setup:${reqIp(request)}`, { limit: 5, windowMs: 60 * 60 * 1000 });
     if (!setupLimit.allowed) return json({ error: 'Too many setup attempts. Try again later.' }, 429);
-    const { sent } = await issueMfaCode(env, user.id, phone);
-    await audit(env, null, 'auth.mfa.setup', { details: { phone: maskPhone(phone), ok: sent.ok } }, user.id);
+    const { sent, channel } = await issueMfaCode(env, user.id, phone, { fallbackEmail: user.email });
+    await audit(env, null, 'auth.mfa.setup', { details: { phone: maskPhone(phone), channel, ok: sent.ok } }, user.id);
     if (!sent.ok) return json({ error: smsErrorMessage(sent) }, 502);
-    return json({ success: true, maskedPhone: maskPhone(phone), smsSent: !!sent.ok });
+    return json({ success: true, maskedPhone: maskPhone(phone), maskedEmail: channel === 'email' ? maskEmail(user.email) : undefined, deliveryChannel: channel, smsSent: channel === 'sms' });
   }
 
   // POST /api/auth/mfa/verify-setup - confirm the code and enable MFA
@@ -689,7 +720,7 @@ async function handleApi(request, env, url) {
     if (!res.ok) return json({ error: res.error }, 400);
     const phone = normalizePhone(body.phone);
     if (!phone) return badRequest('Enter a US phone number like 6175003450, or an international number like +442079460958');
-    await exec(env, 'UPDATE users SET phone = ?, mfa_enabled = 1 WHERE id = ?', [phone, user.id]);
+    await exec(env, 'UPDATE users SET phone = ?, mfa_enabled = 1, mfa_channel = ? WHERE id = ?', [phone, res.channel || 'sms', user.id]);
     await audit(env, null, 'auth.mfa.enabled', { details: { phone: maskPhone(phone) } }, user.id);
     return json({ success: true, mfaEnabled: true });
   }
@@ -731,10 +762,10 @@ async function handleApi(request, env, url) {
     if (!user || !Number(user.mfa_enabled) || !user.phone) return unauthorized('User not found');
     const sendLimit = rateLimit(`mfa:send:${user.id}`, { limit: 3, windowMs: 15 * 60 * 1000 });
     if (!sendLimit.allowed) return json({ error: 'Too many verification codes. Try again later.' }, 429);
-    const { sent } = await issueMfaCode(env, user.id, user.phone);
-    await audit(env, null, 'auth.mfa.send', { details: { channel: 'sms', ok: sent.ok, resend: true } }, user.id);
+    const { sent, channel } = await issueMfaCode(env, user.id, user.phone, { fallbackEmail: user.email, primaryChannel: user.mfa_channel });
+    await audit(env, null, 'auth.mfa.send', { details: { channel, ok: sent.ok, resend: true } }, user.id);
     if (!sent.ok) return json({ error: smsErrorMessage(sent) }, 502);
-    return json({ success: true, maskedPhone: maskPhone(user.phone), smsSent: true });
+    return json({ success: true, maskedPhone: maskPhone(user.phone), maskedEmail: channel === 'email' ? maskEmail(user.email) : undefined, deliveryChannel: channel, smsSent: channel === 'sms' });
   }
 
   // POST /api/auth/mfa/disable - requires a fresh SMS code to the on-file phone
@@ -748,10 +779,10 @@ async function handleApi(request, env, url) {
       const sendLimit = rateLimit(`mfa:send:${user.id}`, { limit: 3, windowMs: 15 * 60 * 1000 });
       if (!sendLimit.allowed) return json({ error: 'Too many verification codes. Try again later.' }, 429);
       if (!user.phone) return badRequest('No phone number on file');
-      const { sent } = await issueMfaCode(env, user.id, user.phone);
-      await audit(env, null, 'auth.mfa.send', { details: { channel: 'sms', ok: sent.ok } }, user.id);
+      const { sent, channel } = await issueMfaCode(env, user.id, user.phone, { fallbackEmail: user.email, primaryChannel: user.mfa_channel });
+      await audit(env, null, 'auth.mfa.send', { details: { channel, ok: sent.ok } }, user.id);
       if (!sent.ok) return json({ error: smsErrorMessage(sent) }, 502);
-      return json({ success: true, codeSent: true, maskedPhone: maskPhone(user.phone) });
+      return json({ success: true, codeSent: true, maskedPhone: maskPhone(user.phone), maskedEmail: channel === 'email' ? maskEmail(user.email) : undefined, deliveryChannel: channel });
     }
     if (!/^\d{6}$/.test(code)) return badRequest('Enter the 6-digit code from the text message');
     const res = await verifyMfaCode(env, user.id, code);

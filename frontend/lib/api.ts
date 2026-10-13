@@ -65,6 +65,8 @@ export interface MfaChallenge {
   challengeToken: string;
   expiresIn: number;
   maskedPhone: string;
+  maskedEmail?: string;
+  deliveryChannel?: 'sms' | 'email';
   smsSent: boolean;
   created?: boolean;
 }

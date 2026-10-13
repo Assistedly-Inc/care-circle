@@ -373,7 +373,7 @@ function SignInCard() {
           <StepLabel n={2} total={2} label="Two-step verification" />
           <h2 className="text-lg font-extrabold text-[var(--color-text)] mb-2">Secure your account</h2>
           <p className="text-sm text-[var(--color-text-light)] leading-relaxed mb-4">
-            Your role can access care information, so we ask you to add a phone number. Sign-in will then require a code — texted to your phone, or emailed to you if texting isn&apos;t available yet.
+            Your role can access care information, so we ask you to add a phone number. We&apos;ll text a code to verify you own it, and sign-in will then require a code from this phone. If your phone hasn&apos;t texted START to 14133509016 yet, do that first so it can receive codes.
           </p>
           {setupStep === 'phone' ? (
             <form onSubmit={handleSetupSend} className="flex flex-col sm:flex-row gap-3 max-w-lg">

@@ -241,7 +241,7 @@ async function inkboxSendSms(env, to, message) {
 // Turn an Inkbox failure into a human-readable message for the user.
 function smsErrorMessage(sent) {
   const code = sent?.detail?.code || sent?.detail?.error?.code || sent?.detail?.error?.error?.code || '';
-  if (code === 'recipient_not_opted_in') return 'This number must opt in to receive texts from Assistedly Cares first — send the word HELP or reply to our number once, then try again.';
+  if (code === 'recipient_not_opted_in') return 'This phone must opt in before it can receive texts. From this phone, text START to 14133509016, then tap Send code again.';
   if (code === 'recipient_opted_out') return 'This number has opted out of text messages.';
   if (code === 'sender_sms_pending') return 'Our text number is still warming up — please try again in about 15 minutes.';
   if (code === 'sender_not_ready') return 'Our text number is not ready yet — please try again shortly.';
@@ -732,10 +732,13 @@ async function handleApi(request, env, url) {
     if (!phone) return badRequest('Enter a US phone number like 6175003450, or an international number like +442079460958');
     const setupLimit = rateLimit(`mfa:setup:${reqIp(request)}`, { limit: 5, windowMs: 60 * 60 * 1000 });
     if (!setupLimit.allowed) return json({ error: 'Too many setup attempts. Try again later.' }, 429);
-    const { sent, channel } = await issueMfaCode(env, user.id, phone, { fallbackEmail: user.email });
+    // Enrollment verifies PHONE OWNERSHIP, so the code must arrive by SMS —
+    // never by email (email fallback would let anyone verify a number they
+    // don't own). Email fallback stays reserved for login-time step-up only.
+    const { sent, channel } = await issueMfaCode(env, user.id, phone);
     await audit(env, null, 'auth.mfa.setup', { details: { phone: maskPhone(phone), channel, ok: sent.ok } }, user.id);
     if (!sent.ok) return json({ error: smsErrorMessage(sent) }, 502);
-    return json({ success: true, maskedPhone: maskPhone(phone), maskedEmail: channel === 'email' ? maskEmail(user.email) : undefined, deliveryChannel: channel, smsSent: channel === 'sms' });
+    return json({ success: true, maskedPhone: maskPhone(phone), deliveryChannel: channel, smsSent: true });
   }
 
   // POST /api/auth/mfa/verify-setup - confirm the code and enable MFA

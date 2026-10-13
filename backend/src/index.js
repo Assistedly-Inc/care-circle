@@ -652,22 +652,15 @@ async function handleApi(request, env, url) {
     // Best-effort confirmation/sign-in email. The token is also returned so the
     // client can complete sign-in immediately (dev mode / no mailer).
     const magicUrl = `${env.APP_URL || 'https://assistedly.ai'}/features/auth/?token=${linkToken}`;
-    // Two-step verification note + one-tap SMS opt-in (US 10DLC: recipient must
-    // text START once before receiving codes).
-    const optInNumber = env.SMS_OPT_IN_NUMBER || '+14133509016';
-    const optInDigits = optInNumber.replace(/\D/g, '');
-    const smsLink = `sms:${optInDigits}?body=START`;
-    const twoStepText = `\n\nTwo-step verification: after signing in you'll be asked to add a phone number so each sign-in is confirmed with a code texted to you. On your phone, tap this link (or text START to ${optInNumber}): ${smsLink}`;
-    const twoStepHtml = `<p style="margin-top:18px;padding-top:14px;border-top:1px solid #e5e7eb;font-size:13px;color:#6b7280"><strong>Two-step verification:</strong> after signing in you'll be asked to add a phone number so each sign-in is confirmed with a code texted to you. <a href="${smsLink}" style="color:#4a7c7e;font-weight:600">Tap here to text START to ${optInNumber}</a> from your phone so it can receive codes.</p><p style="font-size:13px;color:#6b7280">If the link doesn't open your messaging app (some email apps block it), open your messaging app and <a href="${smsLink}" style="color:#4a7c7e;font-weight:600">send START to ${optInNumber}</a> manually.</p>`;
     const emailResult = await resendSendEmail(env, {
       to: email,
       subject: created ? 'Confirm your Assistedly Cares account' : 'Your Assistedly Cares sign-in link',
       text: created
-        ? `Hi ${user.name},\n\nWe created a Assistedly Cares account for ${email}. Confirm your account and sign in by opening this link:\n\n${magicUrl}\n\nThis link expires in 10 minutes. If you didn't request this, you can ignore this email.${twoStepText}`
-        : `Hi ${user.name},\n\nSign in to Assistedly Cares by opening this link:\n\n${magicUrl}\n\nThis link expires in 10 minutes. If you didn't request this, you can ignore this email.${twoStepText}`,
+        ? `Hi ${user.name},\n\nWe created an Assistedly Cares account for ${email}. Confirm your account and sign in by opening this link:\n\n${magicUrl}\n\nThis link expires in 10 minutes. If you didn't request this, you can ignore this email.`
+        : `Hi ${user.name},\n\nSign in to Assistedly Cares by opening this link:\n\n${magicUrl}\n\nThis link expires in 10 minutes. If you didn't request this, you can ignore this email.`,
       html: created
-        ? `<p>Hi ${user.name},</p><p>We created a <strong>Assistedly Cares</strong> account for ${email}. Confirm your account and sign in with the button below.</p><p style="margin:24px 0"><a href="${magicUrl}" style="background:#4a7c7e;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600">Confirm and sign in</a></p><p style="color:#6b7280;font-size:13px">This link expires in 10 minutes. If you didn't request this, you can ignore this email.</p>${twoStepHtml}`
-        : `<p>Hi ${user.name},</p><p>Sign in to <strong>Assistedly Cares</strong> with the button below.</p><p style="margin:24px 0"><a href="${magicUrl}" style="background:#4a7c7e;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600">Sign in to Assistedly Cares</a></p><p style="color:#6b7280;font-size:13px">This link expires in 10 minutes. If you didn't request this, you can ignore this email.</p>${twoStepHtml}`,
+        ? `<p>Hi ${user.name},</p><p>We created an <strong>Assistedly Cares</strong> account for ${email}. Confirm your account and sign in with the button below.</p><p style="margin:24px 0"><a href="${magicUrl}" style="background:#4a7c7e;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600">Confirm and sign in</a></p><p style="color:#6b7280;font-size:13px">This link expires in 10 minutes. If you didn't request this, you can ignore this email.</p>`
+        : `<p>Hi ${user.name},</p><p>Sign in to <strong>Assistedly Cares</strong> with the button below.</p><p style="margin:24px 0"><a href="${magicUrl}" style="background:#4a7c7e;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600">Sign in to Assistedly Cares</a></p><p style="color:#6b7280;font-size:13px">This link expires in 10 minutes. If you didn't request this, you can ignore this email.</p>`,
     });
     return json({
       ok: true,

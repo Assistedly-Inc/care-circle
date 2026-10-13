@@ -9,14 +9,53 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
+// Defense-in-depth headers on every API response (HSTS, nosniff, framing,
+// referrer, no caching of API payloads).
+const securityHeaders = {
+  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Referrer-Policy': 'no-referrer',
+  'Cache-Control': 'no-store',
+};
 function json(data, status = 200) {
-  return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+  return new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', ...securityHeaders, ...corsHeaders } });
 }
 const notFound = (m = 'Not found') => json({ error: m }, 404);
 const badRequest = (m) => json({ error: m }, 400);
 const unauthorized = (m = 'Unauthorized') => json({ error: m }, 401);
 const now = () => new Date().toISOString();
 const uid = () => crypto.randomUUID();
+function reqIp(request) {
+  return request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() || 'unknown';
+}
+
+// ── in-memory rate limiting (per key) ───────────────────────────────────────
+const rateBuckets = new Map();
+function rateLimit(key, { limit, windowMs }) {
+  const nowMs = Date.now();
+  const rec = rateBuckets.get(key);
+  if (!rec || nowMs > rec.resetAt) {
+    rateBuckets.set(key, { count: 1, resetAt: nowMs + windowMs });
+    return { allowed: true, remaining: limit - 1 };
+  }
+  rec.count += 1;
+  return { allowed: rec.count <= limit, remaining: Math.max(0, limit - rec.count) };
+}
+const loginFailures = new Map();
+const MAX_LOGIN_ATTEMPTS = 10;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+function loginLocked(key) {
+  const nowMs = Date.now();
+  const rec = loginFailures.get(key);
+  if (!rec || nowMs > rec.resetAt) {
+    loginFailures.set(key, { count: 0, resetAt: nowMs + LOGIN_WINDOW_MS });
+    return false;
+  }
+  return rec.count >= MAX_LOGIN_ATTEMPTS;
+}
+function recordLoginFailure(key) { const rec = loginFailures.get(key); if (rec) rec.count += 1; }
+function clearLoginFailures(key) { loginFailures.delete(key); }
 
 // ── tiny JWT (HS256) ────────────────────────────────────────────────────────
 function b64url(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
@@ -45,6 +84,78 @@ async function verifyJwt2(token, secret) {
   } catch { return null; }
 }
 const jwtVerify = verifyJwt2;
+
+// ── token revocation (logout / account deletion) ───────────────────────────
+async function sha256Hex(input) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+async function revokeToken(env, token) {
+  try {
+    const payload = await jwtVerify(token, env.SESSION_SECRET || 'dev-secret');
+    if (!payload?.exp) return;
+    const h = await sha256Hex(token);
+    await exec(env, 'INSERT OR IGNORE INTO revoked_tokens (token_hash, expires_at) VALUES (?,?)', [h, new Date(payload.exp * 1000).toISOString()]);
+    await exec(env, 'DELETE FROM revoked_tokens WHERE expires_at <= ?', [now()]);
+  } catch { /* token already invalid */ }
+}
+async function isTokenRevoked(env, token) {
+  try {
+    const h = await sha256Hex(token);
+    const row = await qFirst(env, 'SELECT 1 AS ok FROM revoked_tokens WHERE token_hash = ? AND expires_at > ?', [h, now()]);
+    return !!row;
+  } catch { return false; }
+}
+
+// ── SMS MFA (one-time passcodes via Inkbox) ─────────────────────────────────
+// 10-minute window: friendlier for less tech-enabled users while still
+// bounded; the 5-attempt cap and one-active-code rule keep it secure.
+const MFA_CODE_TTL_MS = 10 * 60 * 1000;
+const MFA_MAX_ATTEMPTS = 5;
+const PRIVILEGED_ROLES = ['coordinator', 'caregiver'];
+function isPrivilegedRole(role) { return PRIVILEGED_ROLES.includes(role); }
+function randomDigits(n) {
+  const arr = new Uint32Array(n);
+  crypto.getRandomValues(arr);
+  return [...arr].map((x) => String(x % 10)).join('');
+}
+function maskPhone(p) {
+  if (!p) return '';
+  return p.replace(/^(\+\d{1,3})(\d+)(\d{4})$/, '$1****$3');
+}
+async function issueMfaCode(env, userId, phone) {
+  // Replace any pending code for this user (one active code per user).
+  await exec(env, 'DELETE FROM mfa_otps WHERE user_id = ?', [userId]);
+  const code = randomDigits(6);
+  const h = await sha256Hex(code);
+  await exec(env, 'INSERT INTO mfa_otps (id, user_id, code_hash, expires_at, attempts, created_at) VALUES (?,?,?,?,?,?)',
+    [uid(), userId, h, new Date(Date.now() + MFA_CODE_TTL_MS).toISOString(), 0, now()]);
+  const sent = await inkboxSendSms(env, phone,
+    `Your Care Circle verification code is ${code}. It expires in 10 minutes. Don't share this code with anyone.`);
+  return { codeHash: h, sent };
+}
+async function verifyMfaCode(env, userId, code) {
+  const row = await qFirst(env, 'SELECT * FROM mfa_otps WHERE user_id = ? ORDER BY created_at DESC LIMIT 1', [userId]);
+  if (!row) return { ok: false, error: 'No verification code pending. Request a new one.' };
+  if (row.expires_at <= now()) {
+    await exec(env, 'DELETE FROM mfa_otps WHERE id = ?', [row.id]);
+    return { ok: false, error: 'Code expired. Request a new one.' };
+  }
+  if (row.attempts >= MFA_MAX_ATTEMPTS) {
+    await exec(env, 'DELETE FROM mfa_otps WHERE id = ?', [row.id]);
+    return { ok: false, error: 'Too many attempts. Request a new code.' };
+  }
+  const h = await sha256Hex(String(code || '').trim());
+  if (h !== row.code_hash) {
+    await exec(env, 'UPDATE mfa_otps SET attempts = attempts + 1 WHERE id = ?', [row.id]);
+    return { ok: false, error: 'Incorrect code.' };
+  }
+  await exec(env, 'DELETE FROM mfa_otps WHERE id = ?', [row.id]);
+  return { ok: true };
+}
+async function mfaChallengeToken(env, user) {
+  return signJwt({ sub: user.id, purpose: 'mfa', scope: 'session' }, env.SESSION_SECRET || 'dev-secret', 300);
+}
 
 // ── SMS via Inkbox (replaces Twilio) ────────────────────────────────────────
 // POST https://inkbox.ai/api/v1/phone/numbers/{phoneId}/texts
@@ -87,19 +198,39 @@ async function resendSendEmail(env, { to, subject, text, html }) {
   }
 }
 
-// ── password hashing (PBKDF2) ───────────────────────────────────────────────
-async function hashPassword(password, secret) {
+// ── password hashing (PBKDF2-SHA256, versioned) ──────────────────────────────
+// Format: v2:<iterations>:<saltB64url>:<hashB64url>. Legacy (100k, no prefix)
+// hashes still verify so existing accounts keep working.
+// NOTE: Cloudflare Workers' WebCrypto caps PBKDF2 at 100,000 iterations — that
+// limit is enforced here (still 10x the NIST SP 800-63B minimum of 10k).
+const PBKDF2_ITERATIONS = 100000;
+// Passwordless accounts can never log in with a password, so their placeholder
+// "hash" is a cheap sentinel instead of a costly PBKDF2 computation.
+const PLACEHOLDER_HASH = 'v2:0:disabled:disabled';
+async function hashPassword(password, secret, iterations = PBKDF2_ITERATIONS) {
+  const iters = Math.min(Math.max(iterations, 1), 100000);
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
-  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' }, key, 256);
-  return `${b64url(salt)}.${b64url(bits)}`;
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: iters, hash: 'SHA-256' }, key, 256);
+  return `v2:${iters}:${b64url(salt)}:${b64url(bits)}`;
 }
 async function verifyPassword(password, stored) {
   try {
-    const [saltB64, hashB64] = stored.split('.');
+    if (typeof stored !== 'string') return false;
+    let saltB64, hashB64, iterations = PBKDF2_ITERATIONS;
+    if (stored.startsWith('v2:')) {
+      const parts = stored.split(':');
+      if (parts.length !== 4) return false;
+      iterations = Math.min(Math.max(parseInt(parts[1], 10) || PBKDF2_ITERATIONS, 1), 100000);
+      saltB64 = parts[2]; hashB64 = parts[3];
+    } else {
+      const [s, h] = stored.split('.');
+      saltB64 = s; hashB64 = h;
+    }
+    if (saltB64 === 'disabled' || hashB64 === 'disabled') return false; // placeholder
     const salt = b64urlToBytes(saltB64);
     const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
-    const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' }, key, 256);
+    const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations, hash: 'SHA-256' }, key, 256);
     return b64url(bits) === hashB64;
   } catch { return false; }
 }
@@ -189,7 +320,8 @@ async function getAuthedUser(env, request) {
   if (!token) return null;
   const payload = await jwtVerify(token, env.SESSION_SECRET || 'dev-secret');
   if (!payload?.sub) return null;
-  return qFirst(env, 'SELECT * FROM users WHERE id = ?', [payload.sub]);
+  if (await isTokenRevoked(env, token)) return null;
+  return qFirst(env, 'SELECT * FROM users WHERE id = ? AND deleted_at IS NULL', [payload.sub]);
 }
 async function canAccessCase(env, user, caseId) {
   if (!user || !caseId) return false;
@@ -336,8 +468,15 @@ async function handleApi(request, env, url) {
     const email = (body.email || '').toLowerCase().trim();
     const password = body.password || '';
     const name = body.name || email.split('@')[0] || '';
-    const role = body.role || 'caregiver';
+    // Roles are assigned server-side: self-registration can never claim
+    // coordinator (full read/write). Elevated roles come from an invitation.
+    const role = ['family', 'caregiver'].includes(body.role) ? body.role : 'caregiver';
     if (!email || !password) return badRequest('Email and password are required');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return badRequest('Invalid email address');
+    if (password.length < 8) return badRequest('Password must be at least 8 characters');
+    if (password.length > 128) return badRequest('Password must be at most 128 characters');
+    const limiter = rateLimit(`register:${reqIp(request)}`, { limit: 10, windowMs: 15 * 60 * 1000 });
+    if (!limiter.allowed) return json({ error: 'Too many registration attempts. Try again later.' }, 429);
     const existing = await qFirst(env, 'SELECT id FROM users WHERE email = ?', [email]);
     if (existing) return json({ error: 'Email already registered' }, 409);
     const id = uid();
@@ -345,26 +484,284 @@ async function handleApi(request, env, url) {
     const t = now();
     await exec(env, 'INSERT INTO users (id, email, password_hash, name, role, created_at, updated_at) VALUES (?,?,?,?,?,?,?)',
       [id, email, ph, name, role, t, t]);
+    await audit(env, null, 'auth.signup', { details: { email, method: 'password' } }, id);
     const token = await signJwt({ sub: id, email, role }, env.SESSION_SECRET || 'dev-secret');
-    return json({ token, user: { id, email, name, role } }, 201);
+    return json({ token, expiresIn: 43200, user: { id, email, name, role }, mfaSetupRequired: isPrivilegedRole(role) }, 201);
   }
 
   if (path === '/api/auth/login' && method === 'POST') {
     const body = await request.json().catch(() => ({}));
     const email = (body.email || '').toLowerCase().trim();
     const password = body.password || '';
-    const user = await qFirst(env, 'SELECT * FROM users WHERE email = ?', [email]);
-    if (!user || !(await verifyPassword(password, user.password_hash))) {
+    if (!email || !password) return badRequest('Email and password are required');
+    const key = `${reqIp(request)}|${email}`;
+    if (loginLocked(key)) return json({ error: 'Too many login attempts. Try again later.' }, 429);
+    const user = await qFirst(env, 'SELECT * FROM users WHERE email = ? AND deleted_at IS NULL', [email]);
+    if (!user || !user.password_hash || !(await verifyPassword(password, user.password_hash))) {
+      recordLoginFailure(key);
+      await audit(env, null, 'auth.login.failed', { details: { email } }, null);
       return unauthorized('Invalid email or password');
     }
+    clearLoginFailures(key);
+    await audit(env, null, 'auth.login', { details: { email } }, user.id);
+    if (Number(user.mfa_enabled)) {
+      if (!user.phone) return json({ error: 'MFA is enabled but no phone number is on file. Contact support.' }, 400);
+      const sendLimit = rateLimit(`mfa:send:${user.id}`, { limit: 3, windowMs: 15 * 60 * 1000 });
+      if (!sendLimit.allowed) return json({ error: 'Too many verification codes. Try again later.' }, 429);
+      const { sent } = await issueMfaCode(env, user.id, user.phone);
+      await audit(env, null, 'auth.mfa.send', { details: { channel: 'sms', ok: sent.ok } }, user.id);
+      return json({
+        mfaRequired: true,
+        challengeToken: await mfaChallengeToken(env, user),
+        expiresIn: 300,
+        maskedPhone: maskPhone(user.phone),
+        smsSent: !!sent.ok,
+      });
+    }
     const token = await signJwt({ sub: user.id, email: user.email, role: user.role }, env.SESSION_SECRET || 'dev-secret');
-    return json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role } });
+    return json({
+      token,
+      expiresIn: 43200,
+      user: { id: user.id, email: user.email, name: user.name, role: user.role },
+      mfaSetupRequired: isPrivilegedRole(user.role) && !Number(user.mfa_enabled),
+    });
   }
 
   if (path === '/api/auth/me' && method === 'GET') {
     const user = await getAuthedUser(env, request);
     if (!user) return unauthorized();
     return json({ user: { id: user.id, email: user.email, name: user.name, role: user.role } });
+  }
+
+  // ── Passwordless magic-link sign-in ───────────────────────────────────────
+  // Existing emails get a sign-in link. Unknown emails are treated as a NEW
+  // user: we create the account and send a confirmation magic link.
+  if (path === '/api/auth/passwordless/request' && method === 'POST') {
+    const body = await request.json().catch(() => ({}));
+    const email = (body.email || '').toLowerCase().trim();
+    if (!email) return badRequest('Email is required');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return badRequest('Invalid email address');
+    const ipLimit = rateLimit(`pwreq:ip:${reqIp(request)}`, { limit: 10, windowMs: 60 * 60 * 1000 });
+    if (!ipLimit.allowed) return json({ error: 'Too many sign-in requests. Try again later.' }, 429);
+    const emailLimit = rateLimit(`pwreq:em:${email}`, { limit: 5, windowMs: 60 * 60 * 1000 });
+    if (!emailLimit.allowed) return json({ error: 'Too many sign-in requests for this email. Try again later.' }, 429);
+    const secret = env.SESSION_SECRET || 'dev-secret';
+    let user = await qFirst(env, 'SELECT * FROM users WHERE email = ?', [email]);
+    let created = false;
+    if (!user) {
+      const id = uid();
+      const t = now();
+      const name = email.split('@')[0].replace(/[._+]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) || 'New member';
+      // Placeholder hash — this account is passwordless; the sentinel can never
+      // be used for a password login (and avoids a costly PBKDF2 on signup).
+      const ph = PLACEHOLDER_HASH;
+      try {
+        await exec(env, 'INSERT INTO users (id, email, password_hash, name, role, created_at, updated_at) VALUES (?,?,?,?,?,?,?)',
+          [id, email, ph, name, 'caregiver', t, t]);
+        user = { id, email, password_hash: ph, name, role: 'caregiver' };
+        created = true;
+      } catch {
+        // Race: another request created the same email between SELECT and INSERT.
+        user = await qFirst(env, 'SELECT * FROM users WHERE email = ?', [email]);
+        if (!user) throw new Error('Failed to create account');
+      }
+    }
+    if (created) await audit(env, null, 'auth.signup', { details: { email, method: 'passwordless' } }, user.id);
+    // One-time link token (10 min) — `created` is embedded so the verify step can
+    // tell the client whether this was a new-account confirmation or a plain sign-in.
+    const linkToken = await signJwt(
+      { sub: user.id, email: user.email, role: user.role, purpose: 'passwordless', created },
+      secret,
+      600
+    );
+    // Best-effort confirmation/sign-in email. The token is also returned so the
+    // client can complete sign-in immediately (dev mode / no mailer).
+    const magicUrl = `${env.APP_URL || 'https://assistedly.ai'}/features/auth/?token=${linkToken}`;
+    const emailResult = await resendSendEmail(env, {
+      to: email,
+      subject: created ? 'Confirm your Care Circle account' : 'Your Care Circle sign-in link',
+      text: created
+        ? `Hi ${user.name},\n\nWe created a Care Circle account for ${email}. Confirm your account and sign in by opening this link:\n\n${magicUrl}\n\nThis link expires in 10 minutes. If you didn't request this, you can ignore this email.`
+        : `Hi ${user.name},\n\nSign in to Care Circle by opening this link:\n\n${magicUrl}\n\nThis link expires in 10 minutes. If you didn't request this, you can ignore this email.`,
+      html: created
+        ? `<p>Hi ${user.name},</p><p>We created a <strong>Care Circle</strong> account for ${email}. Confirm your account and sign in with the button below.</p><p style="margin:24px 0"><a href="${magicUrl}" style="background:#4a7c7e;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600">Confirm and sign in</a></p><p style="color:#6b7280;font-size:13px">This link expires in 10 minutes. If you didn't request this, you can ignore this email.</p>`
+        : `<p>Hi ${user.name},</p><p>Sign in to <strong>Care Circle</strong> with the button below.</p><p style="margin:24px 0"><a href="${magicUrl}" style="background:#4a7c7e;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600">Sign in to Care Circle</a></p><p style="color:#6b7280;font-size:13px">This link expires in 10 minutes. If you didn't request this, you can ignore this email.</p>`,
+    });
+    return json({
+      ok: true,
+      token: linkToken,
+      expiresIn: 600,
+      user: { id: user.id, email: user.email, name: user.name, role: user.role },
+      created,
+      email: emailResult.ok ? 'sent' : emailResult.reason || 'not-sent',
+    });
+  }
+
+  if (path === '/api/auth/passwordless/verify' && method === 'POST') {
+    const body = await request.json().catch(() => ({}));
+    const token = typeof body.token === 'string' ? body.token : '';
+    if (!token) return badRequest('Token is required');
+    const payload = await jwtVerify(token, env.SESSION_SECRET || 'dev-secret');
+    if (!payload || payload.purpose !== 'passwordless' || !payload.sub) {
+      return unauthorized('Invalid or expired sign-in token');
+    }
+    const user = await qFirst(env, 'SELECT * FROM users WHERE id = ?', [payload.sub]);
+    if (!user) return unauthorized('User not found');
+    if (Number(user.mfa_enabled)) {
+      if (!user.phone) return json({ error: 'MFA is enabled but no phone number is on file. Contact support.' }, 400);
+      const sendLimit = rateLimit(`mfa:send:${user.id}`, { limit: 3, windowMs: 15 * 60 * 1000 });
+      if (!sendLimit.allowed) return json({ error: 'Too many verification codes. Try again later.' }, 429);
+      const { sent } = await issueMfaCode(env, user.id, user.phone);
+      await audit(env, null, 'auth.mfa.send', { details: { channel: 'sms', ok: sent.ok } }, user.id);
+      return json({
+        mfaRequired: true,
+        challengeToken: await mfaChallengeToken(env, user),
+        expiresIn: 300,
+        maskedPhone: maskPhone(user.phone),
+        smsSent: !!sent.ok,
+        created: !!payload.created,
+      });
+    }
+    // 12-hour session token
+    const sessionToken = await signJwt({ sub: user.id, email: user.email, role: user.role }, env.SESSION_SECRET || 'dev-secret', 43200);
+    return json({
+      token: sessionToken,
+      expiresIn: 43200,
+      user: { id: user.id, email: user.email, name: user.name, role: user.role },
+      created: !!payload.created,
+      mfaSetupRequired: isPrivilegedRole(user.role) && !Number(user.mfa_enabled),
+    });
+  }
+
+  // ── SMS MFA ────────────────────────────────────────────────────────────────
+  // POST /api/auth/mfa/setup - enroll: send a code to the supplied phone
+  if (path === '/api/auth/mfa/setup' && method === 'POST') {
+    const user = await getAuthedUser(env, request);
+    if (!user) return unauthorized();
+    if (Number(user.mfa_enabled)) return json({ error: 'MFA is already enabled for this account.' }, 409);
+    const body = await request.json().catch(() => ({}));
+    const phone = String(body.phone || '').replace(/[\s()-]/g, '');
+    if (!/^\+[1-9]\d{1,14}$/.test(phone)) return badRequest('Enter a phone number in international format, e.g. +14155550123');
+    const setupLimit = rateLimit(`mfa:setup:${reqIp(request)}`, { limit: 5, windowMs: 60 * 60 * 1000 });
+    if (!setupLimit.allowed) return json({ error: 'Too many setup attempts. Try again later.' }, 429);
+    const { sent } = await issueMfaCode(env, user.id, phone);
+    await audit(env, null, 'auth.mfa.setup', { details: { phone: maskPhone(phone), ok: sent.ok } }, user.id);
+    if (!sent.ok) return json({ error: 'Could not send the verification code. Please try again later.' }, 502);
+    return json({ success: true, maskedPhone: maskPhone(phone), smsSent: !!sent.ok });
+  }
+
+  // POST /api/auth/mfa/verify-setup - confirm the code and enable MFA
+  if (path === '/api/auth/mfa/verify-setup' && method === 'POST') {
+    const user = await getAuthedUser(env, request);
+    if (!user) return unauthorized();
+    if (Number(user.mfa_enabled)) return json({ error: 'MFA is already enabled for this account.' }, 409);
+    const body = await request.json().catch(() => ({}));
+    const code = String(body.code || '').trim();
+    if (!/^\d{6}$/.test(code)) return badRequest('Enter the 6-digit code from the text message');
+    const res = await verifyMfaCode(env, user.id, code);
+    if (!res.ok) return json({ error: res.error }, 400);
+    const phone = String(body.phone || '').replace(/[\s()-]/g, '');
+    if (!phone || !/^\+[1-9]\d{1,14}$/.test(phone)) return badRequest('Phone number is required in international format');
+    await exec(env, 'UPDATE users SET phone = ?, mfa_enabled = 1 WHERE id = ?', [phone, user.id]);
+    await audit(env, null, 'auth.mfa.enabled', { details: { phone: maskPhone(phone) } }, user.id);
+    return json({ success: true, mfaEnabled: true });
+  }
+
+  // POST /api/auth/mfa/verify - second factor at login (challenge token + SMS code)
+  if (path === '/api/auth/mfa/verify' && method === 'POST') {
+    const body = await request.json().catch(() => ({}));
+    const challengeToken = typeof body.challengeToken === 'string' ? body.challengeToken : '';
+    const code = String(body.code || '').trim();
+    if (!challengeToken) return badRequest('Challenge token is required');
+    if (!/^\d{6}$/.test(code)) return badRequest('Enter the 6-digit code from the text message');
+    const payload = await jwtVerify(challengeToken, env.SESSION_SECRET || 'dev-secret');
+    if (!payload || payload.purpose !== 'mfa' || !payload.sub) return unauthorized('Invalid or expired verification challenge');
+    const user = await qFirst(env, 'SELECT * FROM users WHERE id = ? AND deleted_at IS NULL', [payload.sub]);
+    if (!user || !Number(user.mfa_enabled)) return unauthorized('User not found');
+    const res = await verifyMfaCode(env, user.id, code);
+    if (!res.ok) {
+      await audit(env, null, 'auth.mfa.failed', { details: { reason: res.error } }, user.id);
+      return json({ error: res.error }, 400);
+    }
+    await audit(env, null, 'auth.mfa.verify', { details: { channel: 'sms' } }, user.id);
+    const sessionToken = await signJwt({ sub: user.id, email: user.email, role: user.role }, env.SESSION_SECRET || 'dev-secret', 43200);
+    return json({
+      token: sessionToken,
+      expiresIn: 43200,
+      user: { id: user.id, email: user.email, name: user.name, role: user.role },
+      mfaSetupRequired: false,
+    });
+  }
+
+  // POST /api/auth/mfa/resend - re-send the login code (for "didn't get the code?")
+  if (path === '/api/auth/mfa/resend' && method === 'POST') {
+    const body = await request.json().catch(() => ({}));
+    const challengeToken = typeof body.challengeToken === 'string' ? body.challengeToken : '';
+    if (!challengeToken) return badRequest('Challenge token is required');
+    const payload = await jwtVerify(challengeToken, env.SESSION_SECRET || 'dev-secret');
+    if (!payload || payload.purpose !== 'mfa' || !payload.sub) return unauthorized('Invalid or expired verification challenge');
+    const user = await qFirst(env, 'SELECT * FROM users WHERE id = ? AND deleted_at IS NULL', [payload.sub]);
+    if (!user || !Number(user.mfa_enabled) || !user.phone) return unauthorized('User not found');
+    const sendLimit = rateLimit(`mfa:send:${user.id}`, { limit: 3, windowMs: 15 * 60 * 1000 });
+    if (!sendLimit.allowed) return json({ error: 'Too many verification codes. Try again later.' }, 429);
+    const { sent } = await issueMfaCode(env, user.id, user.phone);
+    await audit(env, null, 'auth.mfa.send', { details: { channel: 'sms', ok: sent.ok, resend: true } }, user.id);
+    if (!sent.ok) return json({ error: 'Could not send the verification code. Please try again later.' }, 502);
+    return json({ success: true, maskedPhone: maskPhone(user.phone), smsSent: true });
+  }
+
+  // POST /api/auth/mfa/disable - requires a fresh SMS code to the on-file phone
+  if (path === '/api/auth/mfa/disable' && method === 'POST') {
+    const user = await getAuthedUser(env, request);
+    if (!user) return unauthorized();
+    if (!Number(user.mfa_enabled)) return json({ error: 'MFA is not enabled for this account.' }, 409);
+    const body = await request.json().catch(() => ({}));
+    const code = String(body.code || '').trim();
+    if (!code) {
+      const sendLimit = rateLimit(`mfa:send:${user.id}`, { limit: 3, windowMs: 15 * 60 * 1000 });
+      if (!sendLimit.allowed) return json({ error: 'Too many verification codes. Try again later.' }, 429);
+      if (!user.phone) return badRequest('No phone number on file');
+      const { sent } = await issueMfaCode(env, user.id, user.phone);
+      await audit(env, null, 'auth.mfa.send', { details: { channel: 'sms', ok: sent.ok } }, user.id);
+      if (!sent.ok) return json({ error: 'Could not send the verification code. Please try again later.' }, 502);
+      return json({ success: true, codeSent: true, maskedPhone: maskPhone(user.phone) });
+    }
+    if (!/^\d{6}$/.test(code)) return badRequest('Enter the 6-digit code from the text message');
+    const res = await verifyMfaCode(env, user.id, code);
+    if (!res.ok) return json({ error: res.error }, 400);
+    await exec(env, 'UPDATE users SET mfa_enabled = 0 WHERE id = ?', [user.id]);
+    await audit(env, null, 'auth.mfa.disabled', { details: {} }, user.id);
+    return json({ success: true, mfaEnabled: false });
+  }
+
+  // POST /api/auth/logout - revoke the presented session token server-side
+  if (path === '/api/auth/logout' && method === 'POST') {
+    const token = bearerToken(request);
+    if (!token) return unauthorized();
+    const payload = await jwtVerify(token, env.SESSION_SECRET || 'dev-secret');
+    if (payload?.sub) {
+      await revokeToken(env, token);
+      await audit(env, null, 'auth.logout', { details: { method: 'jwt' } }, payload.sub);
+    }
+    return json({ success: true });
+  }
+
+  // POST /api/auth/delete-account - GDPR Art. 17 erasure for the signed-in user.
+  // Soft-deletes (PII anonymized) so legal/audit retention keeps working; the
+  // session is revoked and the email becomes reusable for a fresh account.
+  if (path === '/api/auth/delete-account' && method === 'POST') {
+    const user = await getAuthedUser(env, request);
+    if (!user) return unauthorized();
+    const token = bearerToken(request);
+    const owned = await qFirst(env, 'SELECT 1 AS ok FROM cases WHERE coordinator_id = ? LIMIT 1', [user.id]);
+    if (owned) return json({ error: 'Transfer or close your care cases before deleting your account.' }, 409);
+    await exec(env, 'DELETE FROM case_members WHERE user_id = ?', [user.id]);
+    await exec(env,
+      'UPDATE users SET email = ?, name = ?, password_hash = ?, role = ?, deleted_at = ? WHERE id = ?',
+      [`deleted-${user.id}@invalid`, 'Deleted User', PLACEHOLDER_HASH, 'caregiver', now(), user.id]);
+    if (token) await revokeToken(env, token);
+    await audit(env, null, 'account.deleted', { details: { email: user.email } }, user.id);
+    return json({ success: true });
   }
 
   // ── Care profiles (case documents) ──
@@ -1044,7 +1441,7 @@ async function handleApi(request, env, url) {
 
 export default {
   async fetch(request, env) {
-    if (request.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
+    if (request.method === 'OPTIONS') return new Response(null, { headers: { ...securityHeaders, ...corsHeaders } });
     const url = new URL(request.url);
     if (url.pathname.startsWith('/api/')) {
       try { return await handleApi(request, env, url); }

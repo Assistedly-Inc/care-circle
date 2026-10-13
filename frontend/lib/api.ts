@@ -52,6 +52,46 @@ async function api<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export interface AuthSession {
+  token: string;
+  expiresIn: number;
+  created?: boolean;
+  mfaSetupRequired?: boolean;
+  user: { id: string; email: string; name: string };
+}
+
+export interface MfaChallenge {
+  mfaRequired: true;
+  challengeToken: string;
+  expiresIn: number;
+  maskedPhone: string;
+  smsSent: boolean;
+  created?: boolean;
+}
+
+export type AuthResult = AuthSession | MfaChallenge;
+
+export function isMfaChallenge(result: AuthResult): result is MfaChallenge {
+  return (result as MfaChallenge).mfaRequired === true;
+}
+
+async function passwordlessVerify(token: string): Promise<AuthResult> {
+  // May return a session (token set) OR an SMS-MFA challenge (no token yet).
+  return api<AuthResult>('/api/auth/passwordless/verify', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
+  });
+}
+
+async function mfaVerify(challengeToken: string, code: string): Promise<AuthSession> {
+  const session = await api<AuthSession>('/api/auth/mfa/verify', {
+    method: 'POST',
+    body: JSON.stringify({ challengeToken, code }),
+  });
+  setToken(session.token);
+  return session;
+}
+
 export const auth = {
   login: async (email: string, password: string) => {
     const res = await api<{ token: string; expiresIn: number; user: { id: string; email: string; name: string } }>(
@@ -62,18 +102,39 @@ export const auth = {
     return res;
   },
   me: () => api<{ user: unknown }>('/api/auth/me'),
-  passwordlessSignIn: async (email: string) => {
-    const link = await api<{ token: string; expiresIn: number }>('/api/auth/passwordless/request', {
+  passwordlessSignIn: async (email: string): Promise<AuthResult> => {
+    const link = await api<{ token: string; expiresIn: number; created?: boolean }>('/api/auth/passwordless/request', {
       method: 'POST',
       body: JSON.stringify({ email }),
     });
-    const session = await api<{ token: string; expiresIn: number; user: { id: string; email: string; name: string } }>(
-      '/api/auth/passwordless/verify',
-      { method: 'POST', body: JSON.stringify({ token: link.token }) }
-    );
-    setToken(session.token);
-    return session;
+    const result = await passwordlessVerify(link.token);
+    if (isMfaChallenge(result)) return result; // second step handled by the UI
+    // `created` comes from the request (and is echoed by verify); prefer the
+    // request's flag so new-account confirmations are labelled correctly.
+    return { ...result, created: link.created ?? result.created ?? false };
   },
+  passwordlessVerify,
+  mfaVerify,
+  mfaSetup: (phone: string) =>
+    api<{ success: boolean; maskedPhone: string; smsSent: boolean }>('/api/auth/mfa/setup', {
+      method: 'POST',
+      body: JSON.stringify({ phone }),
+    }),
+  mfaVerifySetup: (code: string, phone: string) =>
+    api<{ success: boolean; mfaEnabled: boolean }>('/api/auth/mfa/verify-setup', {
+      method: 'POST',
+      body: JSON.stringify({ code, phone }),
+    }),
+  mfaDisable: (code?: string) =>
+    api<{ success: boolean; codeSent?: boolean; maskedPhone?: string; mfaEnabled?: boolean }>('/api/auth/mfa/disable', {
+      method: 'POST',
+      body: JSON.stringify(code ? { code } : {}),
+    }),
+  mfaResend: (challengeToken: string) =>
+    api<{ success: boolean; maskedPhone: string; smsSent: boolean }>('/api/auth/mfa/resend', {
+      method: 'POST',
+      body: JSON.stringify({ challengeToken }),
+    }),
 };
 
 export const cases = {

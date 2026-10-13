@@ -190,13 +190,27 @@ function SignInCard() {
   // Magic-link landing: a confirmation/sign-in email points here with ?token=.
   // Verify it on load and swap the token for a real session (or an MFA challenge).
   useEffect(() => {
-    const token = new URLSearchParams(window.location.search).get('token');
-    if (!token) return;
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    const resend = params.get('resend');
+    if (!token && !resend) return;
     let cancelled = false;
     setBusy(true);
     (async () => {
       try {
-        const result = await auth.passwordlessVerify(token);
+        // "Text me the code instead" link from the verification email.
+        if (resend) {
+          const r = await auth.mfaResend(resend);
+          if (cancelled) return;
+          // Don't leave the resend token in the address bar.
+          window.history.replaceState({}, '', window.location.pathname);
+          setChallenge({ mfaRequired: true, challengeToken: resend, expiresIn: 300, maskedPhone: r.maskedPhone, maskedEmail: r.maskedEmail, deliveryChannel: r.deliveryChannel, smsSent: r.smsSent });
+          setCode('');
+          setStep('mfa');
+          setMessage({ tone: 'info', text: r.deliveryChannel === 'email' ? `We emailed a new code to ${r.maskedEmail}.` : `A new code was texted to ${r.maskedPhone}.` });
+          return;
+        }
+        const result = await auth.passwordlessVerify(token as string);
         if (cancelled) return;
         // Don't leave the one-time token in the address bar.
         window.history.replaceState({}, '', window.location.pathname);

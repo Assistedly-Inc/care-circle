@@ -144,13 +144,21 @@ async function issueMfaCode(env, userId, phone, opts = {}) {
   const optInNumber = env.SMS_OPT_IN_NUMBER || '+14133509016';
   const optInDigits = optInNumber.replace(/\D/g, '');
   const smsLink = `sms:${optInDigits}?body=START`;
+  // "Text me the code instead" link -> frontend triggers mfa/resend via SMS.
+  const resendUrl = opts.challengeToken && opts.appUrl
+    ? `${opts.appUrl}/features/auth/?resend=${opts.challengeToken}`
+    : null;
+  const resendText = resendUrl
+    ? `\n\nPrefer the code by text? Tap here and we'll text it to your phone: ${resendUrl}`
+    : `\n\nPrefer codes by text? Open this link on your phone (or text START to ${optInNumber}): ${smsLink}`;
+  const resendHtml = resendUrl
+    ? `<p style="margin-top:18px;padding-top:14px;border-top:1px solid #e5e7eb;font-size:13px;color:#6b7280"><a href="${resendUrl}" style="color:#4a7c7e;font-weight:600">Text me the code instead</a> — we'll send it to your phone by SMS.</p>`
+    : `<p style="margin-top:18px;padding-top:14px;border-top:1px solid #e5e7eb;font-size:13px;color:#6b7280">Prefer codes by text? <a href="${smsLink}" style="color:#4a7c7e;font-weight:600">Tap here to text START to ${optInNumber}</a> from your phone — it opens your messaging app ready to send.</p>`;
   const emailBody = {
     to: opts.fallbackEmail,
     subject: 'Your Assistedly Cares verification code',
-    text: `Your Assistedly Cares verification code is ${code}. It expires in 10 minutes. If you didn't request this, you can ignore this email.
-\nPrefer codes by text? Open this link on your phone (or text START to ${optInNumber}): ${smsLink}`,
-    html: `<p>Your <strong>Assistedly Cares</strong> verification code is:</p><p style="font-size:28px;font-weight:700;letter-spacing:4px">${code}</p><p style="color:#6b7280;font-size:13px">It expires in 10 minutes. If you didn't request this, you can ignore this email.</p>
-<p style="margin-top:18px;padding-top:14px;border-top:1px solid #e5e7eb;font-size:13px;color:#6b7280">Prefer codes by text? <a href="${smsLink}" style="color:#4a7c7e;font-weight:600">Tap here to text START to ${optInNumber}</a> from your phone — it opens your messaging app ready to send.</p>`,
+    text: `Your Assistedly Cares verification code is ${code}. It expires in 10 minutes. If you didn't request this, you can ignore this email.${resendText}`,
+    html: `<p>Your <strong>Assistedly Cares</strong> verification code is:</p><p style="font-size:28px;font-weight:700;letter-spacing:4px">${code}</p><p style="color:#6b7280;font-size:13px">It expires in 10 minutes. If you didn't request this, you can ignore this email.</p>${resendHtml}`,
   };
   // SMS-first with email fallback so users are never locked out. When a text
   // succeeds for an email-channel account, the caller flips mfa_channel to sms.
@@ -562,14 +570,15 @@ async function handleApi(request, env, url) {
       if (!user.phone) return json({ error: 'MFA is enabled but no phone number is on file. Contact support.' }, 400);
       const sendLimit = rateLimit(`mfa:send:${user.id}`, { limit: 3, windowMs: 15 * 60 * 1000 });
       if (!sendLimit.allowed) return json({ error: 'Too many verification codes. Try again later.' }, 429);
-            const { sent, channel } = await issueMfaCode(env, user.id, user.phone, { fallbackEmail: user.email });
+      const challengeToken = await mfaChallengeToken(env, user);
+      const { sent, channel } = await issueMfaCode(env, user.id, user.phone, { fallbackEmail: user.email, challengeToken, appUrl: env.APP_URL || 'https://assistedly.ai' });
       if (channel !== (user.mfa_channel || 'sms')) {
         await exec(env, 'UPDATE users SET mfa_channel = ? WHERE id = ?', [channel, user.id]);
       }
       await audit(env, null, 'auth.mfa.send', { details: { channel, ok: sent.ok } }, user.id);
       return json({
         mfaRequired: true,
-        challengeToken: await mfaChallengeToken(env, user),
+        challengeToken,
         expiresIn: 300,
         maskedPhone: maskPhone(user.phone),
         maskedEmail: channel === 'email' ? maskEmail(user.email) : undefined,
@@ -677,14 +686,15 @@ async function handleApi(request, env, url) {
       if (!user.phone) return json({ error: 'MFA is enabled but no phone number is on file. Contact support.' }, 400);
       const sendLimit = rateLimit(`mfa:send:${user.id}`, { limit: 3, windowMs: 15 * 60 * 1000 });
       if (!sendLimit.allowed) return json({ error: 'Too many verification codes. Try again later.' }, 429);
-            const { sent, channel } = await issueMfaCode(env, user.id, user.phone, { fallbackEmail: user.email });
+      const challengeToken = await mfaChallengeToken(env, user);
+      const { sent, channel } = await issueMfaCode(env, user.id, user.phone, { fallbackEmail: user.email, challengeToken, appUrl: env.APP_URL || 'https://assistedly.ai' });
       if (channel !== (user.mfa_channel || 'sms')) {
         await exec(env, 'UPDATE users SET mfa_channel = ? WHERE id = ?', [channel, user.id]);
       }
       await audit(env, null, 'auth.mfa.send', { details: { channel, ok: sent.ok } }, user.id);
       return json({
         mfaRequired: true,
-        challengeToken: await mfaChallengeToken(env, user),
+        challengeToken,
         expiresIn: 300,
         maskedPhone: maskPhone(user.phone),
         maskedEmail: channel === 'email' ? maskEmail(user.email) : undefined,
@@ -775,7 +785,7 @@ async function handleApi(request, env, url) {
     if (!user || !Number(user.mfa_enabled) || !user.phone) return unauthorized('User not found');
     const sendLimit = rateLimit(`mfa:send:${user.id}`, { limit: 3, windowMs: 15 * 60 * 1000 });
     if (!sendLimit.allowed) return json({ error: 'Too many verification codes. Try again later.' }, 429);
-    const { sent, channel } = await issueMfaCode(env, user.id, user.phone, { fallbackEmail: user.email });
+    const { sent, channel } = await issueMfaCode(env, user.id, user.phone, { fallbackEmail: user.email, challengeToken, appUrl: env.APP_URL || 'https://assistedly.ai' });
     if (channel !== (user.mfa_channel || 'sms')) {
       await exec(env, 'UPDATE users SET mfa_channel = ? WHERE id = ?', [channel, user.id]);
     }

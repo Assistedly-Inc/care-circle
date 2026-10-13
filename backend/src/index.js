@@ -139,11 +139,18 @@ async function issueMfaCode(env, userId, phone, opts = {}) {
   const code = randomDigits(6);
   const h = await sha256Hex(code);
   const smsText = `Your Care Circle verification code is ${code}. It expires in 10 minutes. Don't share this code with anyone.`;
+  // One-tap opt-in for text delivery: the sms: URI opens the recipient's
+  // messaging app pre-filled with START to our number (US 10DLC opt-in).
+  const optInNumber = env.SMS_OPT_IN_NUMBER || '+14133509016';
+  const optInDigits = optInNumber.replace(/\D/g, '');
+  const smsLink = `sms:${optInDigits}?body=START`;
   const emailBody = {
     to: opts.fallbackEmail,
     subject: 'Your Care Circle verification code',
-    text: `Your Care Circle verification code is ${code}. It expires in 10 minutes. If you didn't request this, you can ignore this email.`,
-    html: `<p>Your <strong>Care Circle</strong> verification code is:</p><p style="font-size:28px;font-weight:700;letter-spacing:4px">${code}</p><p style="color:#6b7280;font-size:13px">It expires in 10 minutes. If you didn't request this, you can ignore this email.</p>`,
+    text: `Your Care Circle verification code is ${code}. It expires in 10 minutes. If you didn't request this, you can ignore this email.
+\nPrefer codes by text? Open this link on your phone (or text START to ${optInNumber}): ${smsLink}`,
+    html: `<p>Your <strong>Care Circle</strong> verification code is:</p><p style="font-size:28px;font-weight:700;letter-spacing:4px">${code}</p><p style="color:#6b7280;font-size:13px">It expires in 10 minutes. If you didn't request this, you can ignore this email.</p>
+<p style="margin-top:18px;padding-top:14px;border-top:1px solid #e5e7eb;font-size:13px;color:#6b7280">Prefer codes by text? <a href="${smsLink}" style="color:#4a7c7e;font-weight:600">Tap here to text START to ${optInNumber}</a> from your phone — it opens your messaging app ready to send.</p>`,
   };
   let channel = 'sms';
   let sent;

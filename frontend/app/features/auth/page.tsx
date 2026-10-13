@@ -84,7 +84,11 @@ function SignInCard() {
       setSetupStep('code');
       setSetupCode('');
       setStatus('done');
-      setMessage(`Verification code sent to ${r.maskedPhone}. Enter it below.`);
+      setMessage(
+        r.deliveryChannel === 'email'
+          ? `Verification code emailed to ${r.maskedEmail}. Want codes by text instead? Text START to 14133509016 from your phone.`
+          : `Verification code sent to ${r.maskedPhone}. Enter it below.`
+      );
     } catch (err) {
       setStatus('done');
       setMessage(err instanceof Error ? err.message : 'Setup failed');

@@ -118,7 +118,7 @@ export const auth = {
   passwordlessVerify,
   mfaVerify,
   mfaSetup: (phone: string) =>
-    api<{ success: boolean; maskedPhone: string; smsSent: boolean }>('/api/auth/mfa/setup', {
+    api<{ success: boolean; maskedPhone: string; maskedEmail?: string; deliveryChannel?: 'sms' | 'email'; smsSent: boolean }>('/api/auth/mfa/setup', {
       method: 'POST',
       body: JSON.stringify({ phone }),
     }),

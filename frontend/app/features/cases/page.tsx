@@ -63,12 +63,18 @@ export default function CasesDemoPage() {
 
   useEffect(() => {
     let cancelled = false;
+    // Demo mode is only for visitors: signed-in users never see the demo banner,
+    // even when they have no care plans yet.
+    const authed = typeof window !== 'undefined' && !!window.localStorage.getItem('carecircle_token');
     (async () => {
       try {
         const list = await casesApi.list();
         if (cancelled) return;
         if (list && list.length > 0) {
           setProfiles(list.map(toCaseView));
+          setDemoMode(false);
+        } else if (authed) {
+          setProfiles([]);
           setDemoMode(false);
         } else {
           setProfiles([demoCaseView()]);
@@ -80,7 +86,7 @@ export default function CasesDemoPage() {
         // error wall, load the default care plan so the page is interactive now.
         if (cancelled) return;
         setProfiles([demoCaseView()]);
-        setDemoMode(true);
+        setDemoMode(!authed);
         setError(null);
       } finally {
         if (!cancelled) setLoading(false);

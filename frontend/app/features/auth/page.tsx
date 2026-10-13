@@ -253,7 +253,7 @@ function SignInCard() {
       } catch (err) {
         if (cancelled) return;
         setStep('email');
-        setMessage({ tone: 'error', text: err instanceof Error ? err.message : 'Sign-in failed' });
+        setMessage({ tone: 'error', text: 'This sign-in link is invalid or has expired. Enter your email to request a new one.' });
       } finally {
         if (!cancelled) setBusy(false);
       }

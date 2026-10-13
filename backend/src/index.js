@@ -643,12 +643,12 @@ async function handleApi(request, env, url) {
       }
     }
     if (created) await audit(env, null, 'auth.signup', { details: { email, method: 'passwordless' } }, user.id);
-    // One-time link token (10 min) — `created` is embedded so the verify step can
+    // One-time link token (24 h) — `created` is embedded so the verify step can
     // tell the client whether this was a new-account confirmation or a plain sign-in.
     const linkToken = await signJwt(
       { sub: user.id, email: user.email, role: user.role, purpose: 'passwordless', created },
       secret,
-      600
+      86400
     );
     // Best-effort confirmation/sign-in email. The token is also returned so the
     // client can complete sign-in immediately (dev mode / no mailer).
@@ -657,16 +657,16 @@ async function handleApi(request, env, url) {
       to: email,
       subject: created ? 'Confirm your Assistedly Cares account' : 'Your Assistedly Cares sign-in link',
       text: created
-        ? `Hi ${user.name},\n\nWe created an Assistedly Cares account for ${email}. Confirm your account and sign in by opening this link:\n\n${magicUrl}\n\nThis link expires in 10 minutes. If you didn't request this, you can ignore this email.`
-        : `Hi ${user.name},\n\nSign in to Assistedly Cares by opening this link:\n\n${magicUrl}\n\nThis link expires in 10 minutes. If you didn't request this, you can ignore this email.`,
+        ? `Hi ${user.name},\n\nWe created an Assistedly Cares account for ${email}. Confirm your account and sign in by opening this link:\n\n${magicUrl}\n\nThis link expires in 24 hours. If you didn't request this, you can ignore this email.`
+        : `Hi ${user.name},\n\nSign in to Assistedly Cares by opening this link:\n\n${magicUrl}\n\nThis link expires in 24 hours. If you didn't request this, you can ignore this email.`,
       html: created
-        ? `<p>Hi ${user.name},</p><p>We created an <strong>Assistedly Cares</strong> account for ${email}. Confirm your account and sign in with the button below.</p><p style="margin:24px 0"><a href="${magicUrl}" style="background:#4a7c7e;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600">Confirm and sign in</a></p><p style="color:#6b7280;font-size:13px">This link expires in 10 minutes. If you didn't request this, you can ignore this email.</p>`
-        : `<p>Hi ${user.name},</p><p>Sign in to <strong>Assistedly Cares</strong> with the button below.</p><p style="margin:24px 0"><a href="${magicUrl}" style="background:#4a7c7e;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600">Sign in to Assistedly Cares</a></p><p style="color:#6b7280;font-size:13px">This link expires in 10 minutes. If you didn't request this, you can ignore this email.</p>`,
+        ? `<p>Hi ${user.name},</p><p>We created an <strong>Assistedly Cares</strong> account for ${email}. Confirm your account and sign in with the button below.</p><p style="margin:24px 0"><a href="${magicUrl}" style="background:#4a7c7e;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600">Confirm and sign in</a></p><p style="color:#6b7280;font-size:13px">This link expires in 24 hours. If you didn't request this, you can ignore this email.</p>`
+        : `<p>Hi ${user.name},</p><p>Sign in to <strong>Assistedly Cares</strong> with the button below.</p><p style="margin:24px 0"><a href="${magicUrl}" style="background:#4a7c7e;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600">Sign in to Assistedly Cares</a></p><p style="color:#6b7280;font-size:13px">This link expires in 24 hours. If you didn't request this, you can ignore this email.</p>`,
     });
     return json({
       ok: true,
       token: linkToken,
-      expiresIn: 600,
+      expiresIn: 86400,
       user: { id: user.id, email: user.email, name: user.name, role: user.role },
       created,
       email: emailResult.ok ? 'sent' : emailResult.reason || 'not-sent',

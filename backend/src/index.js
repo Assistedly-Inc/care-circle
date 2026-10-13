@@ -152,20 +152,13 @@ async function issueMfaCode(env, userId, phone, opts = {}) {
     html: `<p>Your <strong>Assistedly Cares</strong> verification code is:</p><p style="font-size:28px;font-weight:700;letter-spacing:4px">${code}</p><p style="color:#6b7280;font-size:13px">It expires in 10 minutes. If you didn't request this, you can ignore this email.</p>
 <p style="margin-top:18px;padding-top:14px;border-top:1px solid #e5e7eb;font-size:13px;color:#6b7280">Prefer codes by text? <a href="${smsLink}" style="color:#4a7c7e;font-weight:600">Tap here to text START to ${optInNumber}</a> from your phone — it opens your messaging app ready to send.</p>`,
   };
+  // SMS-first with email fallback so users are never locked out. When a text
+  // succeeds for an email-channel account, the caller flips mfa_channel to sms.
   let channel = 'sms';
-  let sent;
-  if (opts.primaryChannel === 'email' && opts.fallbackEmail) {
-    // Email-first account (SMS unavailable on the Inkbox plan): send by email.
-    sent = await resendSendEmail(env, emailBody);
-    channel = sent.ok ? 'email' : 'sms';
-    if (!sent.ok) sent = await inkboxSendSms(env, phone, smsText);
-  } else {
-    // SMS-first with email fallback so users are never locked out.
-    sent = await inkboxSendSms(env, phone, smsText);
-    if (!sent.ok && opts.fallbackEmail) {
-      const e = await resendSendEmail(env, emailBody);
-      if (e.ok) { sent = e; channel = 'email'; }
-    }
+  let sent = await inkboxSendSms(env, phone, smsText);
+  if (!sent.ok && opts.fallbackEmail) {
+    const e = await resendSendEmail(env, emailBody);
+    if (e.ok) { sent = e; channel = 'email'; }
   }
   await exec(env, 'INSERT INTO mfa_otps (id, user_id, code_hash, expires_at, attempts, created_at, channel) VALUES (?,?,?,?,?,?,?)',
     [uid(), userId, h, new Date(Date.now() + MFA_CODE_TTL_MS).toISOString(), 0, now(), channel]);
@@ -569,7 +562,10 @@ async function handleApi(request, env, url) {
       if (!user.phone) return json({ error: 'MFA is enabled but no phone number is on file. Contact support.' }, 400);
       const sendLimit = rateLimit(`mfa:send:${user.id}`, { limit: 3, windowMs: 15 * 60 * 1000 });
       if (!sendLimit.allowed) return json({ error: 'Too many verification codes. Try again later.' }, 429);
-      const { sent, channel } = await issueMfaCode(env, user.id, user.phone, { fallbackEmail: user.email, primaryChannel: user.mfa_channel });
+            const { sent, channel } = await issueMfaCode(env, user.id, user.phone, { fallbackEmail: user.email });
+      if (channel !== (user.mfa_channel || 'sms')) {
+        await exec(env, 'UPDATE users SET mfa_channel = ? WHERE id = ?', [channel, user.id]);
+      }
       await audit(env, null, 'auth.mfa.send', { details: { channel, ok: sent.ok } }, user.id);
       return json({
         mfaRequired: true,
@@ -681,7 +677,10 @@ async function handleApi(request, env, url) {
       if (!user.phone) return json({ error: 'MFA is enabled but no phone number is on file. Contact support.' }, 400);
       const sendLimit = rateLimit(`mfa:send:${user.id}`, { limit: 3, windowMs: 15 * 60 * 1000 });
       if (!sendLimit.allowed) return json({ error: 'Too many verification codes. Try again later.' }, 429);
-      const { sent, channel } = await issueMfaCode(env, user.id, user.phone, { fallbackEmail: user.email, primaryChannel: user.mfa_channel });
+            const { sent, channel } = await issueMfaCode(env, user.id, user.phone, { fallbackEmail: user.email });
+      if (channel !== (user.mfa_channel || 'sms')) {
+        await exec(env, 'UPDATE users SET mfa_channel = ? WHERE id = ?', [channel, user.id]);
+      }
       await audit(env, null, 'auth.mfa.send', { details: { channel, ok: sent.ok } }, user.id);
       return json({
         mfaRequired: true,
@@ -776,7 +775,10 @@ async function handleApi(request, env, url) {
     if (!user || !Number(user.mfa_enabled) || !user.phone) return unauthorized('User not found');
     const sendLimit = rateLimit(`mfa:send:${user.id}`, { limit: 3, windowMs: 15 * 60 * 1000 });
     if (!sendLimit.allowed) return json({ error: 'Too many verification codes. Try again later.' }, 429);
-    const { sent, channel } = await issueMfaCode(env, user.id, user.phone, { fallbackEmail: user.email, primaryChannel: user.mfa_channel });
+    const { sent, channel } = await issueMfaCode(env, user.id, user.phone, { fallbackEmail: user.email });
+    if (channel !== (user.mfa_channel || 'sms')) {
+      await exec(env, 'UPDATE users SET mfa_channel = ? WHERE id = ?', [channel, user.id]);
+    }
     await audit(env, null, 'auth.mfa.send', { details: { channel, ok: sent.ok, resend: true } }, user.id);
     if (!sent.ok) return json({ error: smsErrorMessage(sent) }, 502);
     return json({ success: true, maskedPhone: maskPhone(user.phone), maskedEmail: channel === 'email' ? maskEmail(user.email) : undefined, deliveryChannel: channel, smsSent: channel === 'sms' });
@@ -793,7 +795,7 @@ async function handleApi(request, env, url) {
       const sendLimit = rateLimit(`mfa:send:${user.id}`, { limit: 3, windowMs: 15 * 60 * 1000 });
       if (!sendLimit.allowed) return json({ error: 'Too many verification codes. Try again later.' }, 429);
       if (!user.phone) return badRequest('No phone number on file');
-      const { sent, channel } = await issueMfaCode(env, user.id, user.phone, { fallbackEmail: user.email, primaryChannel: user.mfa_channel });
+      const { sent, channel } = await issueMfaCode(env, user.id, user.phone, { fallbackEmail: user.email });
       await audit(env, null, 'auth.mfa.send', { details: { channel, ok: sent.ok } }, user.id);
       if (!sent.ok) return json({ error: smsErrorMessage(sent) }, 502);
       return json({ success: true, codeSent: true, maskedPhone: maskPhone(user.phone), maskedEmail: channel === 'email' ? maskEmail(user.email) : undefined, deliveryChannel: channel });

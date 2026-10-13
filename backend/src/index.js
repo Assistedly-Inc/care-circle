@@ -176,17 +176,34 @@ async function inkboxSendSms(env, to, message) {
   const phoneId = env.INKBOX_PHONE_NUMBER_ID;
   if (!apiKey || !phoneId) return { ok: false, reason: 'Inkbox credentials not set (INKBOX_API_KEY / INKBOX_PHONE_NUMBER_ID)' };
   if (!to) return { ok: false, reason: 'No recipient phone number' };
+  const headers = { 'X-API-Key': apiKey, 'Content-Type': 'application/json' };
   try {
+    // US recipients must opt in before receiving texts (10DLC). Best-effort
+    // opt-in first; ignore failures — the send itself reports the real error.
+    let optInStatus = null;
+    try {
+      const optIn = await fetch(`https://inkbox.ai/api/v1/phone/sms-opt-ins/${encodeURIComponent(to)}/opt-in`, { method: 'POST', headers });
+      optInStatus = optIn.status;
+    } catch { /* non-fatal */ }
     const res = await fetch(`https://inkbox.ai/api/v1/phone/numbers/${phoneId}/texts`, {
       method: 'POST',
-      headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ to, text: message }),
     });
     const data = await res.json().catch(() => ({}));
-    return { ok: res.ok, status: res.status, detail: data, to };
+    return { ok: res.ok, status: res.status, optInStatus, detail: data, to };
   } catch (err) {
     return { ok: false, error: err.message, to };
   }
+}
+// Turn an Inkbox failure into a human-readable message for the user.
+function smsErrorMessage(sent) {
+  const code = sent?.detail?.code || sent?.detail?.error?.code || sent?.detail?.error?.error?.code || '';
+  if (code === 'recipient_not_opted_in') return 'This number must opt in to receive texts from Care Circle first — send the word HELP or reply to our number once, then try again.';
+  if (code === 'recipient_opted_out') return 'This number has opted out of text messages.';
+  if (code === 'sender_sms_pending') return 'Our text number is still warming up — please try again in about 15 minutes.';
+  if (code === 'sender_not_ready') return 'Our text number is not ready yet — please try again shortly.';
+  return 'Could not send the verification code. Please try again later.';
 }
 
 // ── Email via Resend (reminders) ────────────────────────────────────────────
@@ -656,7 +673,7 @@ async function handleApi(request, env, url) {
     if (!setupLimit.allowed) return json({ error: 'Too many setup attempts. Try again later.' }, 429);
     const { sent } = await issueMfaCode(env, user.id, phone);
     await audit(env, null, 'auth.mfa.setup', { details: { phone: maskPhone(phone), ok: sent.ok } }, user.id);
-    if (!sent.ok) return json({ error: 'Could not send the verification code. Please try again later.' }, 502);
+    if (!sent.ok) return json({ error: smsErrorMessage(sent) }, 502);
     return json({ success: true, maskedPhone: maskPhone(phone), smsSent: !!sent.ok });
   }
 
@@ -716,7 +733,7 @@ async function handleApi(request, env, url) {
     if (!sendLimit.allowed) return json({ error: 'Too many verification codes. Try again later.' }, 429);
     const { sent } = await issueMfaCode(env, user.id, user.phone);
     await audit(env, null, 'auth.mfa.send', { details: { channel: 'sms', ok: sent.ok, resend: true } }, user.id);
-    if (!sent.ok) return json({ error: 'Could not send the verification code. Please try again later.' }, 502);
+    if (!sent.ok) return json({ error: smsErrorMessage(sent) }, 502);
     return json({ success: true, maskedPhone: maskPhone(user.phone), smsSent: true });
   }
 
@@ -733,7 +750,7 @@ async function handleApi(request, env, url) {
       if (!user.phone) return badRequest('No phone number on file');
       const { sent } = await issueMfaCode(env, user.id, user.phone);
       await audit(env, null, 'auth.mfa.send', { details: { channel: 'sms', ok: sent.ok } }, user.id);
-      if (!sent.ok) return json({ error: 'Could not send the verification code. Please try again later.' }, 502);
+      if (!sent.ok) return json({ error: smsErrorMessage(sent) }, 502);
       return json({ success: true, codeSent: true, maskedPhone: maskPhone(user.phone) });
     }
     if (!/^\d{6}$/.test(code)) return badRequest('Enter the 6-digit code from the text message');

@@ -93,7 +93,7 @@ export default function Footer() {
         <div className="mt-10 pt-6 border-t border-[var(--color-border)] flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs text-[var(--color-muted)]">&copy; {new Date().getFullYear()} Assistedly Cares. All rights reserved.</p>
           <a href="mailto:support@assistedly.ai" className="text-xs text-[var(--color-muted)] hover:text-[var(--color-primary)] transition-colors no-underline hover:no-underline">
-            Contact: support@assistedly.ai
+            Contact: support@assistedly.ai | (617) 500-3450
           </a>
           <p className="text-xs text-[var(--color-muted)]">HIPAA-aware. Built for care transitions.</p>
         </div>

@@ -31,10 +31,10 @@ export default function HomePage() {
                 <span className="text-xs font-bold uppercase tracking-[0.1em] text-white/90">Assistedly Cares</span>
               </div>
               <h1 className="text-[clamp(1.6rem,3.5vw,2.4rem)] font-extrabold text-white mb-2 tracking-tight leading-tight drop-shadow-md">
-                The first 30 days home are the most important
+                Solutions for Boston Home Care Agencies
               </h1>
               <p className="text-base text-white/90 max-w-xl mb-5 leading-relaxed drop-shadow-md">
-                Assistedly Cares helps families and facilities bridge the gap between discharge and recovery — with shared care plans, medication tracking, and coordinated daily support.
+                Assistedly Cares helps home-health care companies bridge the gap between discharge and recovery — with shared care plans, medication tracking, and coordinated daily support.
               </p>
               <div className="flex flex-wrap items-center gap-3">
                 <Link href="/features/cases/" className="btn btn-primary btn-lg shadow-md">

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
+import { preloadStripeJs } from '@/lib/stripePreload';
 
 const personaLinks = [
   { href: '/family/', label: 'Family' },
@@ -91,7 +92,7 @@ export default function SiteNav() {
         <div className="flex-1" />
 
         {/* CTA */}
-        <Link href="/checkout/" data-cta="start_trial" className="hidden md:inline-flex btn btn-primary btn-gold-ring !py-2 !px-4 text-sm whitespace-nowrap">
+        <Link href="/checkout/" data-cta="start_trial" onClick={() => preloadStripeJs()} className="hidden md:inline-flex btn btn-primary btn-gold-ring !py-2 !px-4 text-sm whitespace-nowrap">
           Start 30-Day Free Trial
         </Link>
 
@@ -146,7 +147,7 @@ export default function SiteNav() {
               <Link href="/pricing/" onClick={() => setMobileOpen(false)} className="block px-4 py-3 rounded-[var(--radius-md)] text-sm font-semibold text-[var(--color-primary)] hover:bg-[#faf7f3]">
                 Pricing
               </Link>
-              <Link href="/checkout/" onClick={() => setMobileOpen(false)} data-cta="start_trial" className="btn btn-primary btn-gold-ring w-full justify-center !py-3">
+              <Link href="/checkout/" onClick={() => { setMobileOpen(false); preloadStripeJs(); }} data-cta="start_trial" className="btn btn-primary btn-gold-ring w-full justify-center !py-3">
                 Start 30-Day Free Trial
               </Link>
             </div>

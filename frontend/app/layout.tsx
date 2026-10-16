@@ -102,6 +102,8 @@ export default function RootLayout({
       <body className="antialiased flex flex-col min-h-screen">
         {/* Google Consent Mode v2 defaults — MUST execute before the GTM loader */}
         <script dangerouslySetInnerHTML={{ __html: consentDefaultsScript }} />
+        {/* Warm Stripe hosts (DNS/TLS) early — checkout mounts faster */}
+        <script dangerouslySetInnerHTML={{ __html: `(function(){try{var d=document;['https://js.stripe.com','https://api.stripe.com','https://m.stripe.network'].forEach(function(u){var l=d.createElement('link');l.rel='preconnect';l.href=u;d.head.appendChild(l);});}catch(e){}})();` }} />
         {/* Google Tag Manager — client container GTM-5MZDBQ5P */}
         <script dangerouslySetInnerHTML={{ __html: gtmLoaderScript('GTM-5MZDBQ5P') }} />
         <noscript>

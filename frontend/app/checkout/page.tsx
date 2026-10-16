@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { checkoutApi } from '@/lib/api';
+import { preloadStripeJs } from '@/lib/stripePreload';
 
 /**
  * Stripe Checkout — embedded form (ui_mode: "form", Dahlia API).
@@ -71,13 +72,8 @@ export default function CheckoutPage() {
           throw new Error('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY is not set (see frontend/.env.local.example).');
         }
 
-        const StripeCtor = (await loadStripeJs()) as (key: string) => {
-          initCheckoutFormSdk: (args: {
-            clientSecret: string;
-            appearance: typeof appearance;
-          }) => unknown;
-        };
-        const stripe = StripeCtor(publishableKey);
+        // Warm Stripe preconnect/preload even on direct landing (no CTA click).
+        preloadStripeJs();
 
         // Best-effort attribution capture for the server-side GA4 purchase
         // event (Measurement Protocol): GA4 client id from the _ga cookie +
@@ -92,8 +88,20 @@ export default function CheckoutPage() {
           // attribution capture must never break checkout
         }
 
-        // Server endpoint returns JSON { client_secret } — no redirect.
-        const { client_secret } = await checkoutApi.create({ ga4_client_id: ga4ClientId, gclid });
+        // Parallel: Stripe.js download and Checkout Session creation — the
+        // session endpoint does not depend on Stripe.js, so load both at once
+        // instead of waterfalling (saves a full round trip).
+        const [StripeCtor, session] = await Promise.all([
+          loadStripeJs(),
+          checkoutApi.create({ ga4_client_id: ga4ClientId, gclid }),
+        ]);
+        const stripe = (StripeCtor as (key: string) => {
+          initCheckoutFormSdk: (args: {
+            clientSecret: string;
+            appearance: typeof appearance;
+          }) => unknown;
+        })(publishableKey);
+        const { client_secret } = session;
 
         const checkout = stripe.initCheckoutFormSdk({
           clientSecret: client_secret,

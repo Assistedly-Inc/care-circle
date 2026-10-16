@@ -70,7 +70,6 @@ export default function PricingPage() {
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <TrialCta size="btn-lg" source="pricing_hero" />
-            <Link href="/features/cases/" className="btn btn-ghost btn-lg">See a live demo</Link>
           </div>
         </div>
       </section>
@@ -104,7 +103,7 @@ export default function PricingPage() {
                 ))}
               </ul>
               {tier.highlighted ? (
-                <TrialCta source={`pricing_${tier.name.toLowerCase().replace(/\s+/g, '_')}`} microcopy={false} />
+                <TrialCta source={`pricing_${tier.name.toLowerCase().replace(/\s+/g, '_')}`} />
               ) : (
                 <Link href={tier.cta.href} className="btn btn-outline w-full justify-center">{tier.cta.label}</Link>
               )}

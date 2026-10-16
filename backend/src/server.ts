@@ -6,12 +6,16 @@ import { config } from './config/env';
 import routes from './routes';
 import { errorHandler } from './utils/errorHandler';
 import { scheduleReminders } from './services/reminderService';
+import { webhookRouter } from './api/checkout';
 
 const app = express();
 
 // Middleware
 app.use(helmet());
 app.use(cors());
+// Stripe webhook MUST see the raw body for signature verification — register
+// before the global express.json() parser.
+app.use('/api/webhook', express.raw({ type: 'application/json' }), webhookRouter);
 app.use(express.json());
 app.use(morgan('combined'));
 

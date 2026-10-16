@@ -298,6 +298,15 @@ export const exportApi = {
 export const health = {
   check: () => api<{ status: string; kv: boolean; service: string }>('/api/health'),
 };
+
+export const checkoutApi = {
+  create: (meta?: { ga4_client_id?: string; gclid?: string }) =>
+    api<{ client_secret: string }>('/api/create-checkout-session', {
+      method: 'POST',
+      body: JSON.stringify(meta ?? {}),
+    }),
+};
+
 export const remindersApi = {
   list: () => api<Array<{
     id: string;

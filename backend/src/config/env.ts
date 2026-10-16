@@ -12,4 +12,7 @@ export const config = {
   twilioFrom: process.env.TWILIO_FROM || '',
   webPushPublicKey: process.env.WEB_PUSH_PUBLIC_KEY || '',
   webPushPrivateKey: process.env.WEB_PUSH_PRIVATE_KEY || '',
+  stripeSecretKey: process.env.STRIPE_SECRET_KEY || '',
+  stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
+  appDomain: process.env.DOMAIN || 'http://localhost:3000',
 };

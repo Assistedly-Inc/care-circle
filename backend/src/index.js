@@ -30,6 +30,106 @@ function reqIp(request) {
   return request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() || 'unknown';
 }
 
+// ── Stripe helpers (Cloudflare Worker — no SDK; direct REST + Web Crypto) ──
+async function stripeCreateCheckoutSession(env, request) {
+  const sk = env.STRIPE_SECRET_KEY || '';
+  if (!sk) return json({ error: 'STRIPE_SECRET_KEY not configured' }, 500);
+  const form = new URLSearchParams();
+  // fixed_by_ui (Checkout Studio) — do not change without updating Studio
+  form.set('mode', 'subscription');
+  form.set('ui_mode', 'form');
+  form.set('billing_address_collection', 'auto');
+  form.set('phone_number_collection[enabled]', 'false');
+  form.set('automatic_tax[enabled]', 'false');
+  form.set('submit_type', 'auto');
+  form.set('integration_identifier', 'custom_embedded_web_0001');
+  form.set('payment_method_collection', 'always'); // mode === 'subscription'
+  form.set('subscription_data[trial_period_days]', '30'); // 30-day free trial
+  form.set('line_items[0][price]', 'price_1URC9xApH5e5iOZ4vtS464J6'); // $29/mo
+  form.set('line_items[0][quantity]', '1');
+  // Best-effort attribution metadata (from the checkout page, if present)
+  const body = await request.json().catch(() => ({}));
+  if (body.ga4_client_id) form.set('metadata[ga4_client_id]', String(body.ga4_client_id));
+  if (body.gclid) form.set('metadata[gclid]', String(body.gclid));
+  const res = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${btoa(`${sk}:`)}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: form.toString(),
+  });
+  const data = await res.json();
+  if (!res.ok) return json({ error: 'Stripe session creation failed', detail: data.error?.message }, 502);
+  return json({ client_secret: data.client_secret });
+}
+
+// Stripe webhook signature: v1 HMAC-SHA256 of `${timestamp}.${rawBody}` with whsec.
+// Header format: "t=<timestamp>,v1=<hex>[,v1=<hex>...]"
+async function verifyStripeSignature(env, rawBody, header) {
+  const secret = env.STRIPE_WEBHOOK_SECRET || '';
+  if (!secret || !header) return null;
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  let timestamp = '';
+  const signatures = [];
+  for (const part of header.split(',')) {
+    const [name, value] = part.trim().split('=');
+    if (name === 't') timestamp = value;
+    if (name === 'v1') signatures.push(value);
+  }
+  if (!timestamp || signatures.length === 0) return null;
+  // Replay protection: reject timestamps older than 5 minutes.
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (Math.abs(nowSec - Number(timestamp)) > 300) return null;
+  const mac = await crypto.subtle.sign('HMAC', key, enc.encode(`${timestamp}.${rawBody}`));
+  const hex = [...new Uint8Array(mac)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  return signatures.includes(hex) ? Number(timestamp) : null;
+}
+function stripeHandleCompleted(env, session) {
+  console.log('Checkout completed:', session.id);
+  if (session.consent?.terms_of_service === 'accepted') console.log('Customer accepted terms of service');
+  if (session.consent?.promotions === 'opt_in') {
+    console.log('Customer opted in for promotional emails:', session.customer_details?.email);
+    // TODO: add email to marketing list — see STRIPE_INTEGRATION_TODO.md
+  }
+  // TODO: fulfillment (grant access / mark order paid)
+}
+
+// ── GA4 Measurement Protocol (server-side purchase events) ────────────────
+// Fires the GA4 `purchase` event when a subscription invoice is PAID (i.e.,
+// after the 30-day trial, when the first $29 charge succeeds). Requires env:
+//   GA4_MEASUREMENT_ID (G-...) and GA4_API_SECRET — see STRIPE_INTEGRATION_TODO.md
+async function ga4SendPurchase(env, invoice) {
+  const mid = env.GA4_MEASUREMENT_ID || '';
+  const apiSecret = env.GA4_API_SECRET || '';
+  if (!mid || !apiSecret) {
+    console.log('GA4 MP not configured — skipping purchase event for invoice', invoice.id);
+    return;
+  }
+  const amountPaid = invoice.amount_paid || 0;
+  if (amountPaid <= 0) return; // trial-period $0 invoices are not purchases
+  const clientId = invoice.metadata?.ga4_client_id || `stripe_${invoice.subscription || invoice.customer || invoice.id}`;
+  const value = amountPaid / 100;
+  const event = {
+    name: 'purchase',
+    params: {
+      transaction_id: invoice.id,
+      currency: invoice.currency || 'usd',
+      value,
+      items: [{ item_id: invoice.lines?.data?.[0]?.price?.id || 'trial_subscription', quantity: 1, price: value }],
+    },
+  };
+  if (invoice.metadata?.gclid) event.params.gclid = invoice.metadata.gclid; // Google Ads attribution
+  const url = `https://www.google-analytics.com/mp/collect?measurement_id=${encodeURIComponent(mid)}&api_secret=${encodeURIComponent(apiSecret)}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ client_id: clientId, events: [event] }),
+  });
+  console.log('GA4 MP purchase send:', res.status, res.statusText);
+}
+
 // ── in-memory rate limiting (per key) ───────────────────────────────────────
 const rateBuckets = new Map();
 function rateLimit(key, { limit, windowMs }) {
@@ -526,6 +626,20 @@ async function handleApi(request, env, url) {
     let d1 = true;
     try { await q(env, 'SELECT 1'); } catch { d1 = false; }
     return json({ status: 'ok', kv: false, d1, service: 'care-backend-mvp', feature: 'shared-care-profile' });
+  }
+
+  if (path === '/api/create-checkout-session' && method === 'POST') {
+    return stripeCreateCheckoutSession(env, request);
+  }
+
+  if (path === '/api/webhook' && method === 'POST') {
+    const raw = await request.text();
+    const ts = await verifyStripeSignature(env, raw, request.headers.get('stripe-signature') || '');
+    if (ts === null) return json({ error: 'Webhook signature verification failed' }, 400);
+    const event = JSON.parse(raw);
+    if (event.type === 'checkout.session.completed') stripeHandleCompleted(env, event.data?.object || {});
+    if (event.type === 'invoice.paid') ga4SendPurchase(env, event.data?.object || {});
+    return new Response('', { status: 200, headers: securityHeaders });
   }
 
   if (path === '/api/task-templates' && method === 'GET') {

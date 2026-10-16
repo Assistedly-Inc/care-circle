@@ -56,6 +56,14 @@ router.post('/', async (req, res, next) => {
     if (mode === 'subscription') {
       sessionParams.payment_method_collection = 'always';
     }
+    // Redirect the customer back to a thank-you page after checkout.
+    // Origin is derived from the request so the preview workers.dev URL and
+    // production both redirect to the right place.
+    const requestOrigin =
+      (req.headers.origin as string) ||
+      (typeof req.headers.referer === 'string' ? req.headers.referer.replace(/\/$/, '') : '') ||
+      'https://assistedly.ai';
+    sessionParams.return_url = `${requestOrigin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
 
     const session = await stripe.checkout.sessions.create(sessionParams);
     res.json({ client_secret: session.client_secret });

@@ -105,7 +105,7 @@ export default function CheckoutPage() {
           };
           loadActions: () => Promise<{
             type: 'success';
-            actions: { confirm: (args: { formConfirmEvent: unknown }) => Promise<void> };
+            actions: { confirm: (args: { formConfirmEvent: unknown; returnUrl?: string }) => Promise<void> };
           } | { type: 'error' }>;
         };
 
@@ -116,7 +116,11 @@ export default function CheckoutPage() {
         if (loadActionsResult.type === 'success') {
           form.on('confirm', async (event: unknown) => {
             try {
-              await loadActionsResult.actions.confirm({ formConfirmEvent: event });
+              // Embedded Checkout requires a return URL — send the customer to
+              // /checkout/success after the trial is confirmed. The
+              // {CHECKOUT_SESSION_ID} placeholder is replaced by Stripe.
+              const returnUrl = `${window.location.origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
+              await loadActionsResult.actions.confirm({ formConfirmEvent: event, returnUrl });
               // Trial signup succeeded — fire conversion event (GTM/GA4).
               // NOTE: first charge is $0 (30-day trial); real `purchase` events
               // fire post-trial via server-side GA4 (see STRIPE_INTEGRATION_TODO.md).

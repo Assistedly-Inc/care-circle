@@ -11,14 +11,14 @@ const TRIAL_CTA_TEXT = 'Start 30-Day Free Trial';
  * footer, hero, persona pages, cases page — is covered without editing
  * each one. Distinct from the signup conversion via lead_source.
  */
-function trackCtaActivation(label: string) {
+function trackCtaActivation(label: string, ctaKey: string) {
   try {
     const w = window as unknown as { dataLayer?: Record<string, unknown>[] };
     if (Array.isArray(w.dataLayer)) {
       w.dataLayer.push({
         event: 'generate_lead',
         lead_source: 'cta_click',
-        cta: 'start_care_plan',
+        cta: ctaKey,
         cta_label: label,
       });
     }
@@ -43,7 +43,8 @@ export default function CtaTracker() {
           el?.getAttribute('aria-label')?.trim() ||
           el?.textContent?.replace(/\s+/g, ' ').trim().slice(0, 40) ||
           CTA_TEXT;
-        trackCtaActivation(label);
+        const ctaKey = el?.getAttribute('data-cta') || 'start_care_plan';
+        trackCtaActivation(label, ctaKey);
       }
     };
     const onKey = (e: KeyboardEvent) => {

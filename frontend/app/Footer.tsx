@@ -11,6 +11,7 @@ const personaLinks = [
 
 const featureLinks = [
   { href: '/features/cases/', label: 'Care Plans' },
+  { href: '/pricing/', label: 'Pricing' },
   { href: '/features/medications/', label: 'Medications' },
   { href: '/features/tasks/', label: 'Tasks' },
   { href: '/features/health/', label: 'Health' },
@@ -85,8 +86,8 @@ export default function Footer() {
                 </li>
               ))}
             </ul>
-            <Link href="/features/cases/" className="btn btn-primary text-sm !py-2 !px-4 inline-flex">
-              Start a Care Plan
+            <Link href="/checkout/" data-cta="start_trial" className="btn btn-primary text-sm !py-2 !px-4 inline-flex">
+              Start 30-Day Free Trial
             </Link>
           </div>
         </div>

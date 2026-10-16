@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { cases as casesApi } from '@/lib/api';
 import { getDemoProfiles } from '@/lib/demoData';
 import type { CareCase } from '@/types';
+import TrialCta from '@/components/TrialCta';
 
 interface CaseView {
   id: string;
@@ -152,10 +153,12 @@ export default function CasesDemoPage() {
             Every discharge plan lives in one place — medications, follow-ups, contacts, and daily tasks. Families, caregivers, and facilities stay in sync through the first 30 days.
           </p>
           {!showForm && !submitted && (
-            <button onClick={() => setShowForm(true)} className="btn btn-primary btn-lg">
-              Start a Care Plan
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
-            </button>
+            <div className="flex flex-wrap items-center gap-4">
+              <TrialCta size="btn-lg" source="cases_hero" />
+              <button onClick={() => setShowForm(true)} className="btn btn-outline btn-lg">
+                Talk to a care specialist
+              </button>
+            </div>
           )}
           {submitted && (
             <div className="inline-flex items-center gap-2 bg-[#d1fae5] text-[#065f46] px-5 py-3 rounded-[var(--radius-md)] font-semibold">
@@ -173,9 +176,7 @@ export default function CasesDemoPage() {
             <p className="text-sm text-[var(--color-text-light)] leading-relaxed">
               <span className="font-bold text-[var(--color-accent)]">Demo mode — </span>
               you&apos;re exploring a sample care plan so you can try it right away.{' '}
-              <Link href="/features/auth" className="font-semibold text-[var(--color-primary)] hover:underline">
-                Sign in
-              </Link>{' '}
+              <Link href="/checkout/" className="inline-flex items-center font-bold text-[var(--color-primary)] hover:underline">Start 30-day free trial</Link>{' '} or{' '}<Link href="/features/auth" className="font-semibold text-[var(--color-primary)] hover:underline">sign in</Link>{' '}
               to create and manage real care plans.
             </p>
           </div>

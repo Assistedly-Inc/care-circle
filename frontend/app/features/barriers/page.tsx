@@ -348,9 +348,7 @@ export default function BarriersDemoPage() {
             <p className="text-sm text-[var(--color-text-light)] leading-relaxed">
               <span className="font-bold text-[var(--color-accent)]">Demo mode — </span>
               you&apos;re exploring the sample barrier board.{' '}
-              <Link href="/features/auth" className="font-semibold text-[var(--color-primary)] hover:underline">
-                Sign in
-              </Link>{' '}
+              <Link href="/checkout/" className="inline-flex items-center font-bold text-[var(--color-primary)] hover:underline">Start 30-day free trial</Link>{' '} or{' '}<Link href="/features/auth" className="font-semibold text-[var(--color-primary)] hover:underline">sign in</Link>{' '}
               to manage real cases.
             </p>
           </div>

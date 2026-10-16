@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 
 const CTA_TEXT = 'Start a Care Plan';
+const TRIAL_CTA_TEXT = 'Start 30-Day Free Trial';
 
 /**
  * Fire a key event (generate_lead) when the primary CTA is activated.
@@ -29,7 +30,7 @@ function trackCtaActivation(label: string) {
 function matchesCta(el: Element | null): boolean {
   if (!el || typeof el.textContent !== 'string') return false;
   const text = el.textContent.replace(/\s+/g, ' ').trim();
-  return text.includes(CTA_TEXT) || el.hasAttribute('data-cta');
+  return text.includes(CTA_TEXT) || text.includes(TRIAL_CTA_TEXT) || el.hasAttribute('data-cta');
 }
 
 export default function CtaTracker() {

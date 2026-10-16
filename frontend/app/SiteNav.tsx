@@ -75,12 +75,24 @@ export default function SiteNav() {
           </Link>
         </nav>
 
+        <Link
+          href="/pricing/"
+          className={`px-3 py-1.5 rounded-[var(--radius-md)] text-sm font-semibold transition-colors whitespace-nowrap ${
+            isActive('/pricing/', pathname)
+              ? 'bg-[#fbeedf] text-[var(--color-accent)]'
+              : 'text-[var(--color-primary)] hover:bg-[#faf7f3] hover:text-[var(--color-secondary)]'
+          }`}
+          aria-current={isActive('/pricing/', pathname) ? 'page' : undefined}
+        >
+          Pricing
+        </Link>
+
         {/* Spacer */}
         <div className="flex-1" />
 
         {/* CTA */}
-        <Link href="/features/cases/" className="hidden md:inline-flex btn btn-primary !py-2 !px-4 text-sm whitespace-nowrap">
-          Start a Care Plan
+        <Link href="/checkout/" data-cta="start_trial" className="hidden md:inline-flex btn btn-primary !py-2 !px-4 text-sm whitespace-nowrap">
+          Start 30-Day Free Trial
         </Link>
 
         {/* Mobile hamburger */}
@@ -131,8 +143,11 @@ export default function SiteNav() {
                   Chat with Inkbot
                 </span>
               </Link>
-              <Link href="/features/cases/" onClick={() => setMobileOpen(false)} className="btn btn-primary w-full justify-center !py-3">
-                Start a Care Plan
+              <Link href="/pricing/" onClick={() => setMobileOpen(false)} className="block px-4 py-3 rounded-[var(--radius-md)] text-sm font-semibold text-[var(--color-primary)] hover:bg-[#faf7f3]">
+                Pricing
+              </Link>
+              <Link href="/checkout/" onClick={() => setMobileOpen(false)} data-cta="start_trial" className="btn btn-primary w-full justify-center !py-3">
+                Start 30-Day Free Trial
               </Link>
             </div>
           </div>

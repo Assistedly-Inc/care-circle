@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import InkbotChat from '@/components/InkbotChat';
+import TrialCta from '@/components/TrialCta';
 
 const stakeholders = [
   { slug: 'family', title: 'Families', desc: 'Coordinate everything in the critical first 30 days after discharge.', image: '/images/senior-daughter.jpg', color: 'bg-[#e8f4ef] text-[#4a7c7e]' },
@@ -40,9 +41,9 @@ export default function HomePage() {
             </div>
 
             <div className="mt-6 flex flex-wrap items-center gap-3">
-              <Link href="/features/cases/" className="btn btn-primary btn-lg shadow-md">
-                Start a Care Plan
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+              <TrialCta size="btn-lg" source="home_hero" />
+              <Link href="/pricing/" className="btn btn-ghost btn-lg">
+                See pricing
               </Link>
             </div>
           </div>
@@ -88,10 +89,7 @@ export default function HomePage() {
           <p className="text-lg font-extrabold text-[var(--color-text)] tracking-tight">
             Ready to make the first 30 days easier?
           </p>
-          <Link href="/features/cases/" className="btn btn-primary btn-lg shrink-0">
-            Start a Care Plan
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
-          </Link>
+          <TrialCta size="btn-lg" source="home_midpage" />
         </div>
       </section>
 
@@ -234,10 +232,10 @@ export default function HomePage() {
             Set up your first care transition plan in under two minutes. Free for families. Built for facilities.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4">
-            <Link href="/features/cases/" className="btn btn-primary btn-lg">
-              Start a Care Plan
+            <TrialCta size="btn-lg" source="home_endpage" />
+            <Link href="/features/cases/" className="btn btn-ghost btn-lg">
+              See a live demo
             </Link>
-
           </div>
         </div>
       </section>

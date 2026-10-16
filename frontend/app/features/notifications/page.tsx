@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { cases, tasksApi, remindersApi } from '@/lib/api';
+import { getDemoProfiles } from '@/lib/demoData';
 
 const NOTIFICATION_TYPES = ['Medication', 'Appointment', 'Task', 'Check-in'] as const;
 
@@ -18,6 +19,41 @@ interface Reminder {
   escalationLevel: number;
 }
 
+const isDemoId = (id: string) => id.startsWith('demo-') || id.startsWith('local-');
+
+/** Sample case shown to visitors so reminders are interactive immediately. */
+function demoCase() {
+  const d = getDemoProfiles()[0];
+  return {
+    id: d.id,
+    patientName: d.patient.displayName,
+    patientDob: d.patient.dateOfBirth,
+    emergencyContact: d.emergencyContacts[0]?.name || '',
+  };
+}
+
+/** Sample reminders mapped from the demo profile + a few realistic extras. */
+function demoReminders(): Reminder[] {
+  const d = getDemoProfiles()[0];
+  const base: Reminder[] = d.notifications.map((n) => ({
+    id: n.id,
+    title: n.title,
+    type: n.type,
+    time: n.time,
+    status: n.status,
+    caseId: d.id,
+    patientName: d.patient.displayName,
+    ownerName: 'Home health nurse',
+    escalationLevel: 0,
+  }));
+  return [
+    ...base,
+    { id: 'demo-n4', title: 'Enoxaparin injection due', type: 'Medication', time: '2026-09-19T17:00:00Z', status: 'pending', caseId: d.id, patientName: d.patient.displayName, ownerName: 'Home health nurse', escalationLevel: 0 },
+    { id: 'demo-n5', title: 'Change surgical dressing', type: 'Task', time: '2026-09-19T15:00:00Z', status: 'pending', caseId: d.id, patientName: d.patient.displayName, ownerName: 'Home health nurse', escalationLevel: 0 },
+    { id: 'demo-n6', title: 'Evening check-in call', type: 'Check-in', time: '2026-09-19T19:00:00Z', status: 'sent', caseId: d.id, patientName: d.patient.displayName, ownerName: 'Home health nurse', escalationLevel: 1 },
+  ];
+}
+
 export default function NotificationsPage() {
   const [casesList, setCasesList] = useState<any[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
@@ -26,15 +62,32 @@ export default function NotificationsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [form, setForm] = useState({ title: '', type: 'Task' as typeof NOTIFICATION_TYPES[number], time: '09:00' });
+  const [demoMode, setDemoMode] = useState(false);
+
+  const applyDemo = () => {
+    const demo = demoCase();
+    setCasesList([demo]);
+    setReminders(demoReminders());
+    setSelectedCaseId(demo.id);
+    setDemoMode(true);
+    setError(null);
+  };
 
   const load = async () => {
     try {
       const [c, r] = await Promise.all([cases.list(), remindersApi.list()]);
-      setCasesList(c);
-      setReminders(r);
-      setError(null);
+      if (c && c.length > 0 && r && r.length > 0) {
+        setCasesList(c);
+        setReminders(r);
+        setDemoMode(false);
+        setError(null);
+      } else {
+        // Empty lists → sample data so visitors can try reminders now.
+        applyDemo();
+      }
     } catch (e: any) {
-      setError(e.message);
+      // Visitors without a session hit the auth-required backend → sample data.
+      applyDemo();
     } finally {
       setLoading(false);
     }
@@ -63,6 +116,23 @@ export default function NotificationsPage() {
     const [h, m] = form.time.split(':').map(Number);
     now.setHours(h, m, 0, 0);
 
+    if (isDemoId(selectedCase.id)) {
+      // Demo: add the reminder locally so visitors can try the flow.
+      setReminders(prev => [...prev, {
+        id: `local-${Date.now()}`,
+        title: form.title,
+        type: form.type,
+        time: now.toISOString(),
+        status: 'pending',
+        caseId: selectedCase.id,
+        patientName: selectedCase.patientName,
+        ownerName: 'You (family member)',
+        escalationLevel: 0,
+      }]);
+      setForm({ title: '', type: 'Task', time: '09:00' });
+      return;
+    }
+
     await tasksApi.create(selectedCase.id, { title: form.title, dueDate: now.toISOString() });
     setForm({ title: '', type: 'Task', time: '09:00' });
     load();
@@ -71,6 +141,11 @@ export default function NotificationsPage() {
   async function markDone(id: string) {
     const r = reminders.find((x) => x.id === id);
     if (!r) return;
+    if (isDemoId(r.caseId)) {
+      // Demo: mark read locally so visitors can try the flow.
+      setReminders(prev => prev.map((x) => x.id === id ? { ...x, status: 'read' } : x));
+      return;
+    }
     await tasksApi.update(r.caseId, r.id, { status: 'COMPLETED' });
     load();
   }
@@ -94,6 +169,22 @@ export default function NotificationsPage() {
           </p>
         </div>
       </div>
+
+      {/* Demo-mode notice (sample data for visitors) */}
+      {demoMode && (
+        <div className="container mt-6">
+          <div className="card !p-4 flex flex-wrap items-center justify-between gap-3 border border-[var(--color-accent)]/30 bg-[#fdf9f3]">
+            <p className="text-sm text-[var(--color-text-light)] leading-relaxed">
+              <span className="font-bold text-[var(--color-accent)]">Demo mode — </span>
+              you&apos;re exploring sample reminders &amp; alerts.{' '}
+              <Link href="/features/auth" className="font-semibold text-[var(--color-primary)] hover:underline">
+                Sign in
+              </Link>{' '}
+              to manage real notifications.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="container mt-8">
         {error && (

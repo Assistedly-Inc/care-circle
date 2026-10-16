@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { cases, followUpsApi, type FollowUp } from '@/lib/api';
+import { getDemoProfiles } from '@/lib/demoData';
 
 const STATUS_STYLES: Record<string, string> = {
   SCHEDULED: 'bg-[#fef3c7] text-[#92400e]',
@@ -12,6 +13,76 @@ const STATUS_STYLES: Record<string, string> = {
   CANCELLED: 'bg-gray-100 text-gray-500',
 };
 
+const isDemoId = (id: string) => id.startsWith('demo-');
+
+/** Sample case shown to visitors when the backend is auth-gated or has no plans yet. */
+function demoCaseView() {
+  const d = getDemoProfiles()[0];
+  return {
+    id: d.id,
+    patientName: d.patient.displayName,
+    dischargeAt: d.updatedAt,
+  };
+}
+
+/** Sample follow-ups mapped from the demo profile's tasks (dueDates) and 'Check-in' notifications. */
+function buildDemoFollowUps(): FollowUp[] {
+  const d = getDemoProfiles()[0];
+  const now = new Date().toISOString();
+  const items: FollowUp[] = [];
+  (d.tasks || []).forEach((t) => {
+    if (!t.dueDate) return;
+    const status = t.status === 'done' ? 'COMPLETED' : t.status === 'blocked' ? 'ESCALATED' : 'SCHEDULED';
+    items.push({
+      id: `demo-fu-${t.id}`,
+      caseId: d.id,
+      scheduledFor: `${t.dueDate}T12:00:00Z`,
+      completedAt: status === 'COMPLETED' ? `${t.dueDate}T12:00:00Z` : null,
+      status,
+      contactType: 'phone',
+      notes: t.description || t.title,
+      outcome: status === 'COMPLETED' ? 'OK' : null,
+      escalatedAt: null,
+      escalationLevel: status === 'ESCALATED' ? 1 : 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+  });
+  (d.notifications || []).forEach((n) => {
+    if (n.type !== 'Check-in') return;
+    items.push({
+      id: `demo-fu-${n.id}`,
+      caseId: d.id,
+      scheduledFor: n.time,
+      completedAt: null,
+      status: 'SCHEDULED',
+      contactType: 'sms',
+      notes: n.title,
+      outcome: null,
+      escalatedAt: null,
+      escalationLevel: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+  });
+  return items.sort((a, b) => +new Date(a.scheduledFor) - +new Date(b.scheduledFor));
+}
+
+function computeMetrics(fus: FollowUp[]) {
+  const total = fus.length;
+  const completed = fus.filter((f) => f.status === 'COMPLETED').length;
+  const escalated = fus.filter((f) => f.status === 'ESCALATED').length;
+  const missed = fus.filter((f) => f.status === 'MISSED').length;
+  return {
+    total,
+    completed,
+    escalated,
+    missed,
+    completionRate: total ? Math.round((completed / total) * 100) : 0,
+    escalationRate: total ? Math.round((escalated / total) * 100) : 0,
+  };
+}
+
 export default function FollowUpsPage() {
   const [casesList, setCasesList] = useState<any[]>([]);
   const [selectedCaseId, setSelectedCaseId] = useState('');
@@ -19,22 +90,54 @@ export default function FollowUpsPage() {
   const [metrics, setMetrics] = useState<{ total: number; completed: number; escalated: number; missed: number; completionRate: number; escalationRate: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [demoMode, setDemoMode] = useState(false);
 
   const loadCases = async () => {
     try {
-      setCasesList(await cases.list());
+      const list = await cases.list();
+      if (list && list.length > 0) {
+        setCasesList(list);
+        setError(null);
+      } else {
+        // No plans yet → sample data so visitors can try follow-up tracking now.
+        const demo = demoCaseView();
+        const demoFus = buildDemoFollowUps();
+        setCasesList([demo]);
+        setSelectedCaseId(demo.id);
+        setFollowUps(demoFus);
+        setMetrics(computeMetrics(demoFus));
+        setDemoMode(true);
+        setError(null);
+      }
     } catch (e: any) {
-      setError(e.message);
+      // Visitors without a session hit the auth-required backend → sample data.
+      const demo = demoCaseView();
+      const demoFus = buildDemoFollowUps();
+      setCasesList([demo]);
+      setSelectedCaseId(demo.id);
+      setFollowUps(demoFus);
+      setMetrics(computeMetrics(demoFus));
+      setDemoMode(true);
+      setError(null);
     } finally {
       setLoading(false);
     }
   };
 
   const loadMetrics = async () => {
+    if (demoMode) return; // demo metrics computed from local sample follow-ups
     try { setMetrics(await followUpsApi.metrics()); } catch { /* ignore */ }
   };
 
   const loadFollowUps = async (caseId: string) => {
+    if (isDemoId(caseId)) {
+      // Demo follow-ups live in local state — no backend call.
+      const demoFus = buildDemoFollowUps();
+      setFollowUps(demoFus);
+      setMetrics(computeMetrics(demoFus));
+      setError(null);
+      return;
+    }
     try {
       setFollowUps(await followUpsApi.list(caseId));
       setError(null);
@@ -52,12 +155,46 @@ export default function FollowUpsPage() {
 
   async function schedule() {
     if (!selectedCaseId) return;
+    if (isDemoId(selectedCaseId)) {
+      // Local demo cadence: day-3/7/14/30 check-ins anchored to today.
+      const now = new Date();
+      const base = now.toISOString();
+      const newFus: FollowUp[] = [3, 7, 14, 30].map((day) => ({
+        id: `demo-fu-cadence-${day}-${Date.now()}`,
+        caseId: selectedCaseId,
+        scheduledFor: new Date(now.getTime() + day * 86400000).toISOString(),
+        completedAt: null,
+        status: 'SCHEDULED',
+        contactType: 'phone',
+        notes: `Automated ${day}-day post-discharge check-in`,
+        outcome: null,
+        escalatedAt: null,
+        escalationLevel: 0,
+        createdAt: base,
+        updatedAt: base,
+      }));
+      setFollowUps((prev) => {
+        const next = [...prev, ...newFus];
+        setMetrics(computeMetrics(next));
+        return next;
+      });
+      return;
+    }
     await followUpsApi.schedule(selectedCaseId);
     loadFollowUps(selectedCaseId);
     loadMetrics();
   }
 
   async function updateFollowUp(fu: FollowUp, patch: Partial<FollowUp>) {
+    if (isDemoId(fu.caseId)) {
+      // Demo updates are local React state only.
+      setFollowUps((prev) => {
+        const next = prev.map((f) => (f.id === fu.id ? { ...f, ...patch, updatedAt: new Date().toISOString() } : f));
+        setMetrics(computeMetrics(next));
+        return next;
+      });
+      return;
+    }
     await followUpsApi.update(fu.caseId, fu.id, patch);
     loadFollowUps(fu.caseId);
     loadMetrics();
@@ -81,6 +218,22 @@ export default function FollowUpsPage() {
           </p>
         </div>
       </div>
+
+      {/* Demo-mode notice (sample data for visitors) */}
+      {demoMode && (
+        <div className="container mt-6">
+          <div className="card !p-4 flex flex-wrap items-center justify-between gap-3 border border-[var(--color-accent)]/30 bg-[#fdf9f3]">
+            <p className="text-sm text-[var(--color-text-light)] leading-relaxed">
+              <span className="font-bold text-[var(--color-accent)]">Demo mode — </span>
+              you&apos;re exploring sample follow-up tracking.{' '}
+              <Link href="/features/auth" className="font-semibold text-[var(--color-primary)] hover:underline">
+                Sign in
+              </Link>{' '}
+              to manage real care plans.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="container mt-8">
         {error && (

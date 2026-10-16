@@ -1,0 +1,15 @@
+name = "chat-worker"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# workers.dev URL is used as the API base for the frontend and the
+# Inkbox webhook destination (https://chat-worker.<acct>.workers.dev).
+# Production custom domain (chat.assistedly.ai) can be added later via routes.
+
+[observability]
+enabled = true
+
+[[kv_namespaces]]
+binding = "CHAT_KV"
+id = "58f76a6084ae4222aff248210e4a69a4"

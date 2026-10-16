@@ -17,6 +17,7 @@ const featureLinks = [
   { href: '/features/notifications/', label: 'Reminders' },
   { href: '/features/follow-ups/', label: 'Follow-Ups' },
   { href: '/features/export/', label: 'Export' },
+  { href: '/chat/', label: 'Chat with Inkbot' },
 ];
 
 const legalLinks = [

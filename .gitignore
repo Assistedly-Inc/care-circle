@@ -11,3 +11,9 @@ out/
 *.bak-c1
 *.bak-*
 .wrangler/
+# Agent tooling caches / vendored skills — never commit
+.agents/
+.firecrawl/
+.goose/
+google-ads-skills/
+skills-lock.json

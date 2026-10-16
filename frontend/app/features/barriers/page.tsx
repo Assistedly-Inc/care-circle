@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { cases as casesApi, barriersApi } from '@/lib/api';
+import { getDemoBarrierCases } from '@/lib/demoBarriers';
 import type { Barrier, BarrierMetrics } from '@/lib/api';
 import type { CareCase } from '@/types';
 
@@ -56,7 +57,7 @@ interface DemoBarrier {
 
 interface DemoBarrierCase {
   id: string;
-  patient: { displayName: string };
+  patient: { displayName: string; primaryDiagnosis?: string };
   admissionAt?: string;
   dischargeAt?: string;
   updatedAt: string;
@@ -109,6 +110,46 @@ function readinessOf(c: DemoBarrierCase): 'GREEN' | 'AMBER' | 'RED' {
   return 'GREEN';
 }
 
+const isDemoId = (id: string) => id.startsWith('b-') || id.startsWith('bar-') || id.startsWith('local-');
+
+/** Sample barrier board for visitors (the real APIs require a session). */
+function buildDemoCases(): DemoBarrierCase[] {
+  return getDemoBarrierCases().map(d => ({
+    id: d.id,
+    patient: { displayName: d.patient.displayName, primaryDiagnosis: d.patient.primaryDiagnosis },
+    admissionAt: d.admissionAt || undefined,
+    dischargeAt: d.dischargeAt || undefined,
+    updatedAt: d.barriers.reduce((latest, b) => (b.createdAt > latest ? b.createdAt : latest), d.admissionAt || ''),
+    barriers: d.barriers.map(b => ({ ...b, notes: b.notes || [] })),
+  }));
+}
+
+/** Pilot metrics computed from the sample board so the metrics section stays live in demo mode. */
+function demoMetrics(): BarrierMetrics {
+  const demo = getDemoBarrierCases();
+  const all = demo.flatMap(c => c.barriers);
+  const resolved = all.filter(b => ttrHours(b) !== null);
+  const byType: Record<string, number[]> = {};
+  for (const b of resolved) {
+    (byType[b.type] = byType[b.type] || []).push(ttrHours(b) as number);
+  }
+  const medianTimeToResolutionHoursByType: Record<string, number> = {};
+  for (const [type, hours] of Object.entries(byType)) {
+    hours.sort((a, b) => a - b);
+    const mid = Math.floor(hours.length / 2);
+    medianTimeToResolutionHoursByType[type] = hours.length % 2 ? hours[mid] : Math.round(((hours[mid - 1] + hours[mid]) / 2) * 10) / 10;
+  }
+  const discharged = demo.filter(c => c.dischargeAt);
+  const sameDay = discharged.filter(c => new Date(c.admissionAt).toDateString() === new Date(c.dischargeAt as string).toDateString()).length;
+  return {
+    casesConsidered: demo.length,
+    sameDayDischargeRate: discharged.length ? sameDay / discharged.length : null,
+    medianTimeToResolutionHoursByType,
+    slaBreachRate: all.length ? all.filter(isBreached).length / all.length : null,
+    openBarrierCount: all.filter(b => b.status !== 'RESOLVED').length,
+  };
+}
+
 export default function BarriersDemoPage() {
   const [cases, setCases] = useState<DemoBarrierCase[]>([]);
   const [selected, setSelected] = useState('');
@@ -116,6 +157,7 @@ export default function BarriersDemoPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [apiMetrics, setApiMetrics] = useState<BarrierMetrics | null>(null);
+  const [demoMode, setDemoMode] = useState(false);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [resolveNote, setResolveNote] = useState('');
   const [assignText, setAssignText] = useState<Record<string, string>>({});
@@ -127,28 +169,59 @@ export default function BarriersDemoPage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      let list: CareCase[] = [];
       try {
-        const [list, metrics] = await Promise.all([casesApi.list(), barriersApi.metrics()]);
-        if (cancelled) return;
+        list = await casesApi.list();
+      } catch (e) {
+        if (!cancelled) {
+          // Visitors without a session hit the auth-required backend → sample board.
+          const demo = buildDemoCases();
+          setCases(demo);
+          setDemoMode(true);
+          setApiMetrics(demoMetrics());
+          setError(null);
+          if (demo.length > 0) setSelected(demo[0].id);
+        }
+        if (!cancelled) setLoading(false);
+        return;
+      }
+      if (cancelled) return;
+      if (list && list.length > 0) {
         const views = list.map(toCaseView);
         setCases(views);
-        setApiMetrics(metrics);
+        setDemoMode(false);
+        setApiMetrics(null);
         setError(null);
         if (views.length > 0) {
           const latest = views.slice().sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt))[0];
           setSelected(latest.id);
           loadBarriers(latest.id).catch(e => setError(e instanceof Error ? e.message : 'Failed to load barriers'));
         }
-      } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load barriers');
-      } finally {
+        try {
+          const metrics = await barriersApi.metrics();
+          if (!cancelled) setApiMetrics(metrics);
+        } catch {
+          // Pilot metrics unavailable — cards fall back to '—' rather than failing the page.
+        }
         if (!cancelled) setLoading(false);
+        return;
       }
+      if (!cancelled) {
+        // No cases yet → sample board so visitors can try the workflow.
+        const demo = buildDemoCases();
+        setCases(demo);
+        setDemoMode(true);
+        setApiMetrics(demoMetrics());
+        setError(null);
+        if (demo.length > 0) setSelected(demo[0].id);
+      }
+      if (!cancelled) setLoading(false);
     })();
     return () => { cancelled = true; };
   }, []);
 
   async function loadBarriers(caseId: string) {
+    if (isDemoId(caseId)) return; // demo barriers live on the local case view
     const barriers = await barriersApi.list(caseId);
     setCases(prev => prev.map(c => c.id === caseId ? { ...c, barriers: barriers.map(toDemoBarrier) } : c));
   }
@@ -190,6 +263,14 @@ export default function BarriersDemoPage() {
 
   async function patchBarrier(id: string, patch: Partial<DemoBarrier>) {
     if (!selected) return;
+    if (isDemoId(selected)) {
+      setCases(prev => prev.map(c => c.id !== selected ? c : {
+        ...c,
+        barriers: c.barriers.map(b => b.id === id ? { ...b, ...patch } : b),
+      }));
+      setError(null);
+      return;
+    }
     setSaving(true);
     try {
       await barriersApi.update(selected, id, {
@@ -209,6 +290,19 @@ export default function BarriersDemoPage() {
     e.preventDefault();
     const owner = (assignText[barrier.id] || '').trim();
     if (!owner) return;
+    if (isDemoId(selected)) {
+      setCases(prev => prev.map(c => c.id !== selected ? c : {
+        ...c,
+        barriers: c.barriers.map(b => b.id === barrier.id ? {
+          ...b,
+          owner,
+          status: b.status === 'IDENTIFIED' ? 'ASSIGNED' : b.status,
+          notes: [...(b.notes || []), { user: 'You', text: `Assigned to ${owner}`, time: new Date().toISOString() }],
+        } : b),
+      }));
+      setAssignText(prev => ({ ...prev, [barrier.id]: '' }));
+      return;
+    }
     // Real ownership requires a registered user; record the assignment as a note.
     setCases(prev => prev.map(c => c.id !== selected ? c : {
       ...c,
@@ -246,6 +340,22 @@ export default function BarriersDemoPage() {
           </p>
         </div>
       </div>
+
+      {/* Demo-mode notice (sample board for visitors) */}
+      {demoMode && (
+        <div className="container mt-6">
+          <div className="card !p-4 flex flex-wrap items-center justify-between gap-3 border border-[var(--color-accent)]/30 bg-[#fdf9f3]">
+            <p className="text-sm text-[var(--color-text-light)] leading-relaxed">
+              <span className="font-bold text-[var(--color-accent)]">Demo mode — </span>
+              you&apos;re exploring the sample barrier board.{' '}
+              <Link href="/features/auth" className="font-semibold text-[var(--color-primary)] hover:underline">
+                Sign in
+              </Link>{' '}
+              to manage real cases.
+            </p>
+          </div>
+        </div>
+      )}
 
       {error ? (
         <div className="container mt-8">

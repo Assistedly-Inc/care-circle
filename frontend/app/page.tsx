@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import InkbotChat from '@/components/InkbotChat';
 
 const stakeholders = [
   { slug: 'family', title: 'Families', desc: 'Coordinate everything in the critical first 30 days after discharge.', image: '/images/senior-daughter.jpg', color: 'bg-[#e8f4ef] text-[#4a7c7e]' },
@@ -16,32 +17,33 @@ const transitionPhases = [
 export default function HomePage() {
   return (
     <div className="pb-16">
-      {/* ─── Hero: Discharge is the beginning ─── */}
+      {/* ─── Hero: Chat is the primary CTA ─── */}
       <section className="relative w-full overflow-hidden">
-        <div className="relative h-[clamp(300px,38vw,440px)]">
+        <div className="relative min-h-[clamp(600px,80vh,880px)] flex items-center">
           <img src="/images/hero-family-care.jpg" alt="Adult son in a supportive conversation with his elderly father at home" fetchPriority="high" width={2400} height={900} className="absolute inset-0 w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.78)_0%,rgba(0,0,0,0.45)_50%,rgba(0,0,0,0.18)_100%)]" />
-          
-          <div className="container relative h-full flex flex-col items-start justify-end pb-10 md:pb-14">
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(0,0,0,0.82)_0%,rgba(0,0,0,0.6)_40%,rgba(0,0,0,0.28)_100%)]" />
+
+          <div className="container relative w-full py-12 md:py-16">
             <div className="max-w-2xl">
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#A8D8EA]/80 backdrop-blur-sm rounded-full border border-white/30 mb-3">
-                <svg className="w-4 h-4 text-white/90" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-                </svg>
-                <span className="text-xs font-bold uppercase tracking-[0.1em] text-white/90">Assistedly Cares</span>
-              </div>
               <h1 className="text-[clamp(1.6rem,3.5vw,2.4rem)] font-extrabold text-white mb-2 tracking-tight leading-tight drop-shadow-md">
                 The first 30 days home are the most important
               </h1>
-              <p className="text-base text-white/90 max-w-xl mb-5 leading-relaxed drop-shadow-md">
+              <p className="text-base text-white/90 max-w-xl leading-relaxed drop-shadow-md">
                 Assistedly Cares helps families and facilities bridge the gap between discharge and recovery — with shared care plans, medication tracking, and coordinated daily support.
               </p>
-              <div className="flex flex-wrap items-center gap-3">
-                <Link href="/features/cases/" className="btn btn-primary btn-lg shadow-md">
-                  Start a Care Plan
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
-                </Link>
-              </div>
+            </div>
+
+            {/* Chat box — the primary call to action. Wide + tall so the full
+                conversation and prompts fit without scrolling. */}
+            <div className="mt-6 max-w-5xl h-[clamp(560px,72vh,820px)]">
+              <InkbotChat />
+            </div>
+
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              <Link href="/features/cases/" className="btn btn-primary btn-lg shadow-md">
+                Start a Care Plan
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+              </Link>
             </div>
           </div>
         </div>
@@ -77,6 +79,19 @@ export default function HomePage() {
               <div className="absolute inset-0 bg-[var(--color-primary)]/10" />
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* ── Mid-page CTA: right after the risk framing ── */}
+      <section className="bg-[#fdf9f3] border-y border-[var(--color-border)] py-10">
+        <div className="container flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-lg font-extrabold text-[var(--color-text)] tracking-tight">
+            Ready to make the first 30 days easier?
+          </p>
+          <Link href="/features/cases/" className="btn btn-primary btn-lg shrink-0">
+            Start a Care Plan
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+          </Link>
         </div>
       </section>
 
@@ -173,7 +188,7 @@ export default function HomePage() {
                 </li>
               ))}
             </ul>
-            <Link href="/professional/" className="btn btn-primary">
+            <Link href="/professional/" className="btn btn-ghost">
               For Discharge Planners & Facilities →
             </Link>
           </div>

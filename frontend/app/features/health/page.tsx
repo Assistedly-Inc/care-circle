@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
+import { getDemoProfiles } from '@/lib/demoData';
 
 const API_BASE = 'https://care-backend-mvp.forwardjump-com198.workers.dev';
 
@@ -42,8 +44,83 @@ type CareProfile = {
     givenBy?: string;
     givenAt?: string | null;
   };
+  medications?: {
+    id: string;
+    name: string;
+    dose: string;
+    schedule: string;
+    source?: string;
+    verified: boolean;
+  }[];
+  tasks?: {
+    id: string;
+    title: string;
+    owner?: string;
+    status: string;
+    description?: string;
+    escalated?: boolean;
+  }[];
   status: string;
 };
+
+/** Sample care profiles shown to visitors so health tracking is interactive immediately. */
+function demoCareProfiles(): CareProfile[] {
+  return getDemoProfiles().map((d) => ({
+    id: d.id,
+    patient: {
+      displayName: d.patient.displayName,
+      firstName: d.patient.firstName,
+      lastName: d.patient.lastName,
+      dateOfBirth: d.patient.dateOfBirth,
+      primaryDiagnosis: d.patient.primaryDiagnosis,
+      gender: d.patient.gender,
+      phone: d.patient.phone,
+      address: d.patient.address,
+      notes: (d.tasks || []).map((t) => `${t.title}${t.description ? ` — ${t.description}` : ''}`).join('\n'),
+    },
+    emergencyContacts: (d.emergencyContacts || []).map((c) => ({
+      name: c.name,
+      relationship: c.relationship,
+      phone: c.phone,
+      email: c.email,
+    })),
+    medications: (d.medications || []).map((m) => ({
+      id: m.id,
+      name: m.name,
+      dose: m.dose,
+      schedule: m.schedule,
+      source: m.source,
+      verified: m.verified,
+    })),
+    tasks: (d.tasks || []).map((t) => ({
+      id: t.id,
+      title: t.title,
+      owner: t.owner,
+      status: t.status,
+      description: t.description,
+      escalated: t.escalated,
+    })),
+    dischargeInstructions: {
+      summary: `${d.patient.primaryDiagnosis} recovery plan. ${
+        (d.notifications || []).filter((n) => n.type === 'Check-in').length
+      } check-in reminder(s) scheduled.`,
+      followUp: (d.tasks || []).find((t) => /follow[- ]?up/i.test(t.title))?.title || 'Follow-up scheduled per care team.',
+      redFlags: (d.tasks || []).filter((t) => t.escalated).map((t) => t.title),
+      activity: (d.tasks || []).find((t) => t.owner === d.patient.displayName)?.title || '—',
+      diet: 'Follow discharge nutrition guidance.',
+      dischargeDate: (d.updatedAt || '').slice(0, 10) || undefined,
+    },
+    consent: {
+      given: true,
+      scope: 'Sample demo data — no real patient information.',
+      givenBy: d.patient.displayName,
+      givenAt: d.updatedAt || null,
+    },
+    status: d.status === 'pending' ? 'PENDING' : 'ACTIVE',
+  }));
+}
+
+const isDemoId = (id: string) => id.startsWith('demo-') || id.startsWith('local-');
 
 function Loading() {
   return <p style={{ color: '#64748b' }}>Loading profiles...</p>;
@@ -152,6 +229,7 @@ export default function HealthFeaturePage() {
   const [view, setView] = useState<'list' | 'create' | 'detail'>('list');
   const [selectedProfile, setSelectedProfile] = useState<CareProfile | null>(null);
   const [saving, setSaving] = useState(false);
+  const [demoMode, setDemoMode] = useState(false);
 
   const fetchProfiles = useCallback(async () => {
     setLoading(true);
@@ -160,9 +238,22 @@ export default function HealthFeaturePage() {
       const res = await fetch(`${API_BASE}/api/care-profiles`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setProfiles(data.patients || []);
+      const patients = data.patients || [];
+      if (patients.length === 0) {
+        // No care profiles yet → sample data so visitors can try health tracking now.
+        setProfiles(demoCareProfiles());
+        setDemoMode(true);
+        setError(null);
+      } else {
+        setProfiles(patients);
+        setDemoMode(false);
+        setError(null);
+      }
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      // Visitors without a session hit the auth-required backend → sample data.
+      setProfiles(demoCareProfiles());
+      setDemoMode(true);
+      setError(null);
     } finally {
       setLoading(false);
     }
@@ -175,11 +266,12 @@ export default function HealthFeaturePage() {
   const backToList = useCallback(() => {
     setView('list');
     setSelectedProfile(null);
-    fetchProfiles();
-  }, [fetchProfiles]);
+    if (!demoMode) fetchProfiles();
+  }, [fetchProfiles, demoMode]);
 
   const refreshAndShow = useCallback(
     async (profileId?: string) => {
+      if (profileId && isDemoId(profileId)) return; // demo data lives in local state
       await fetchProfiles();
       if (profileId) {
         const res = await fetch(`${API_BASE}/api/care-profiles/${profileId}`);
@@ -194,6 +286,27 @@ export default function HealthFeaturePage() {
 
   async function createProfile(form: Record<string, string>) {
     setSaving(true);
+    if (demoMode) {
+      // Demo: create the profile locally so visitors can try the flow.
+      const local: CareProfile = {
+        id: `local-${Date.now()}`,
+        status: form.status || 'ACTIVE',
+        patient: {
+          displayName: form.displayName,
+          dateOfBirth: form.dateOfBirth,
+          primaryDiagnosis: form.primaryDiagnosis,
+          notes: form.notes,
+        },
+        emergencyContacts: [],
+        dischargeInstructions: { redFlags: [] },
+        consent: { given: false },
+      };
+      setProfiles((prev) => [...prev, local]);
+      setSelectedProfile(local);
+      setView('detail');
+      setSaving(false);
+      return;
+    }
     try {
       const body: Partial<CareProfile> = {
         status: form.status || 'ACTIVE',
@@ -226,6 +339,13 @@ export default function HealthFeaturePage() {
 
   async function updateProfile(profileId: string, body: Partial<CareProfile>) {
     setSaving(true);
+    if (isDemoId(profileId)) {
+      // Demo: apply updates locally so visitors can try the flow.
+      setProfiles((prev) => prev.map((p) => (p.id === profileId ? { ...p, ...body } : p)));
+      setSelectedProfile((prev) => (prev && prev.id === profileId ? { ...prev, ...body } : prev));
+      setSaving(false);
+      return;
+    }
     try {
       const res = await fetch(`${API_BASE}/api/care-profiles/${profileId}`, {
         method: 'PUT',
@@ -253,6 +373,32 @@ export default function HealthFeaturePage() {
         {view === 'list' && <Button onClick={() => setView('create')}>+ New Profile</Button>}
         {view !== 'list' && <Button variant="secondary" onClick={backToList}>← Back to List</Button>}
       </header>
+
+      {demoMode && (
+        <div
+          style={{
+            marginTop: 16,
+            padding: '12px 16px',
+            borderRadius: 12,
+            border: '1px solid #f59e0b',
+            background: '#fdf9f3',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            flexWrap: 'wrap',
+          }}
+        >
+          <p style={{ margin: 0, fontSize: 14, color: '#475569', lineHeight: 1.5 }}>
+            <strong style={{ color: '#b45309' }}>Demo mode — </strong>
+            you&apos;re exploring sample health tracking.{' '}
+            <Link href="/features/auth" style={{ fontWeight: 600, color: '#2563eb' }}>
+              Sign in
+            </Link>{' '}
+            to manage real care plans.
+          </p>
+        </div>
+      )}
 
       {view === 'list' && (
         <section>
@@ -534,6 +680,48 @@ function ProfileDetail({
                 <Input label="Notes" value={patient.notes || ''} onChange={(v) => setPatient((s) => ({ ...s, notes: v }))} />
               </div>
             </div>
+          )}
+        </Section>
+
+        <Section title="Medications">
+          {mode === 'view' ? (
+            (profile.medications || []).length > 0 ? (
+              <div style={{ display: 'grid', gap: 8 }}>
+                {(profile.medications || []).map((m) => (
+                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, background: '#f8fafc', borderRadius: 8, padding: '8px 12px', fontSize: 14 }}>
+                    <div style={{ color: '#0f172a', fontWeight: 600 }}>{m.name}</div>
+                    <div style={{ color: '#475569' }}>{m.dose} · {m.schedule}</div>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: m.verified ? '#065f46' : '#c4956a', background: m.verified ? '#d1fae5' : '#fbeedf', padding: '2px 8px', borderRadius: 999 }}>
+                      {m.verified ? 'Verified' : 'Needs verification'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ color: '#64748b', fontSize: 14 }}>No medications recorded.</p>
+            )
+          ) : (
+            <p style={{ color: '#64748b', fontSize: 13 }}>Medications are managed from the Medications page.</p>
+          )}
+        </Section>
+
+        <Section title="Tasks">
+          {mode === 'view' ? (
+            (profile.tasks || []).length > 0 ? (
+              <div style={{ display: 'grid', gap: 8 }}>
+                {(profile.tasks || []).map((t) => (
+                  <div key={t.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, background: '#f8fafc', borderRadius: 8, padding: '8px 12px', fontSize: 14 }}>
+                    <div style={{ color: '#0f172a', fontWeight: 600 }}>{t.title}</div>
+                    <div style={{ color: '#475569', fontSize: 13 }}>{t.owner || '—'} · {t.status}</div>
+                    {t.escalated && <span style={{ fontSize: 12, fontWeight: 700, color: '#b45309', background: '#fef3c7', padding: '2px 8px', borderRadius: 999 }}>Escalated</span>}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ color: '#64748b', fontSize: 14 }}>No tasks yet.</p>
+            )
+          ) : (
+            <p style={{ color: '#64748b', fontSize: 13 }}>Tasks are managed from the Tasks page.</p>
           )}
         </Section>
 

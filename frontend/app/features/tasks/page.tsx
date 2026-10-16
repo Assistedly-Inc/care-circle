@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { cases as casesApi, tasksApi } from '@/lib/api';
+import { getDemoProfiles } from '@/lib/demoData';
 import type { CareCase, Task } from '@/types';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -60,6 +61,31 @@ function toCaseView(c: CareCase): CaseView {
   };
 }
 
+/** Sample care plan shown to visitors so task management is interactive immediately. */
+function demoCaseView(): CaseView {
+  const d = getDemoProfiles()[0];
+  return {
+    id: d.id,
+    patient: { displayName: d.patient.displayName, primaryDiagnosis: d.patient.primaryDiagnosis },
+    emergencyContacts: d.emergencyContacts.map((c) => ({ name: c.name })),
+    medications: [],
+    notifications: [],
+    tasks: d.tasks.map((t) => ({
+      id: t.id,
+      title: t.title,
+      owner: t.owner,
+      dueDate: t.dueDate,
+      status: t.status,
+      description: t.description,
+      escalated: t.escalated,
+      comments: t.comments.map((c) => ({ user: c.user, text: c.text, time: c.time })),
+    })),
+    updatedAt: d.updatedAt,
+  };
+}
+
+const isDemoId = (id: string) => id.startsWith('demo-') || id.startsWith('local-');
+
 export default function TasksDemoPage() {
   const [profiles, setProfiles] = useState<CaseView[]>([]);
   const [selectedProfile, setSelectedProfile] = useState<string>('');
@@ -68,6 +94,7 @@ export default function TasksDemoPage() {
   const [commentingTask, setCommentingTask] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
   const [saving, setSaving] = useState(false);
+  const [demoMode, setDemoMode] = useState(false);
 
   const [newTask, setNewTask] = useState<{
     title: string;
@@ -85,16 +112,32 @@ export default function TasksDemoPage() {
       try {
         const list = await casesApi.list();
         if (cancelled) return;
-        const views = list.map(toCaseView);
-        setProfiles(views);
-        setError(null);
-        if (views.length > 0) {
-          const latest = views.slice().sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt))[0];
-          setSelectedProfile(latest.id);
-          refreshTasks(latest.id).catch(e => setError(e instanceof Error ? e.message : 'Failed to load tasks'));
+        if (list && list.length > 0) {
+          const views = list.map(toCaseView);
+          setProfiles(views);
+          setDemoMode(false);
+          setError(null);
+          if (views.length > 0) {
+            const latest = views.slice().sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt))[0];
+            setSelectedProfile(latest.id);
+            refreshTasks(latest.id).catch(e => setError(e instanceof Error ? e.message : 'Failed to load tasks'));
+          }
+        } else {
+          // No care plans yet → sample data so visitors can try task management now.
+          const demo = demoCaseView();
+          setProfiles([demo]);
+          setSelectedProfile(demo.id);
+          setDemoMode(true);
+          setError(null);
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load cases');
+        // Visitors without a session hit the auth-required backend → sample data.
+        if (cancelled) return;
+        const demo = demoCaseView();
+        setProfiles([demo]);
+        setSelectedProfile(demo.id);
+        setDemoMode(true);
+        setError(null);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -103,6 +146,7 @@ export default function TasksDemoPage() {
   }, []);
 
   async function refreshTasks(caseId: string) {
+    if (isDemoId(caseId)) return; // demo tasks live in the local CaseView
     const tasks = await tasksApi.list(caseId);
     setProfiles(prev => prev.map(p => p.id === caseId ? { ...p, tasks: tasks.map(toTaskView) } : p));
   }
@@ -123,6 +167,22 @@ export default function TasksDemoPage() {
     e.preventDefault();
     if (!profile || !newTask.title.trim()) return;
     setSaving(true);
+    if (isDemoId(selectedProfile)) {
+      // Demo: add the task locally so visitors can try the flow.
+      setProfiles(prev => prev.map(p => p.id === selectedProfile ? { ...p, tasks: [...p.tasks, {
+        id: `local-${Date.now()}`,
+        title: newTask.title,
+        owner: newTask.owner || 'You',
+        dueDate: newTask.dueDate || undefined,
+        status: newTask.status,
+        description: newTask.description,
+        escalated: false,
+        comments: [],
+      }] } : p));
+      setNewTask({ title: '', owner: '', dueDate: '', status: 'todo', description: '' });
+      setSaving(false);
+      return;
+    }
     try {
       await tasksApi.create(selectedProfile, {
         title: newTask.title,
@@ -141,6 +201,11 @@ export default function TasksDemoPage() {
 
   async function updateStatus(taskId: string, status: string) {
     if (!selectedProfile) return;
+    if (isDemoId(selectedProfile)) {
+      // Demo: update the status locally so visitors can try the flow.
+      setProfiles(prev => prev.map(p => p.id === selectedProfile ? { ...p, tasks: p.tasks.map(t => t.id === taskId ? { ...t, status } : t) } : p));
+      return;
+    }
     try {
       await tasksApi.update(selectedProfile, taskId, { status });
       await refreshTasks(selectedProfile);
@@ -154,6 +219,11 @@ export default function TasksDemoPage() {
     if (!selectedProfile || !profile) return;
     const task = profile.tasks.find(t => t.id === taskId);
     if (!task) return;
+    if (isDemoId(selectedProfile)) {
+      // Demo: toggle escalation locally so visitors can try the flow.
+      setProfiles(prev => prev.map(p => p.id === selectedProfile ? { ...p, tasks: p.tasks.map(t => t.id === taskId ? { ...t, escalated: !t.escalated } : t) } : p));
+      return;
+    }
     try {
       await tasksApi.update(selectedProfile, taskId, { escalationLevel: task.escalated ? 0 : 1 });
       await refreshTasks(selectedProfile);
@@ -165,6 +235,13 @@ export default function TasksDemoPage() {
 
   async function addComment(taskId: string) {
     if (!commentText.trim() || !selectedProfile) return;
+    if (isDemoId(selectedProfile)) {
+      // Demo: add the comment locally so visitors can try the flow.
+      setProfiles(prev => prev.map(p => p.id === selectedProfile ? { ...p, tasks: p.tasks.map(t => t.id === taskId ? { ...t, comments: [...t.comments, { user: 'You', text: commentText, time: new Date().toISOString() }] } : t) } : p));
+      setCommentText('');
+      setCommentingTask(null);
+      return;
+    }
     try {
       await tasksApi.addComment(selectedProfile, taskId, commentText);
       await refreshTasks(selectedProfile);
@@ -190,6 +267,22 @@ export default function TasksDemoPage() {
           </p>
         </div>
       </div>
+
+      {/* Demo-mode notice (sample data for visitors) */}
+      {demoMode && (
+        <div className="container mt-6">
+          <div className="card !p-4 flex flex-wrap items-center justify-between gap-3 border border-[var(--color-accent)]/30 bg-[#fdf9f3]">
+            <p className="text-sm text-[var(--color-text-light)] leading-relaxed">
+              <span className="font-bold text-[var(--color-accent)]">Demo mode — </span>
+              you&apos;re exploring sample task management.{' '}
+              <Link href="/features/auth" className="font-semibold text-[var(--color-primary)] hover:underline">
+                Sign in
+              </Link>{' '}
+              to manage real care plans.
+            </p>
+          </div>
+        </div>
+      )}
 
       {error ? (
         <div className="container mt-8">

@@ -53,6 +53,7 @@
   --soft-peach: #FFE5D6;
   /* ─── Assistedly.ai brand palette ─── */
   --color-primary: #4a7c7e;
+  --color-primary-dark: #3d6668;
   --color-secondary: #6d1247;
   --color-accent: #c4956a;
   --color-success: #4a7c7e;
@@ -122,15 +123,22 @@ a:hover {
 .btn:hover { transform: translateY(-2px); }
 .btn:active { transform: translateY(0); }
 
-.btn-primary  {
-    color: white;
-
-  background: var(--color-accent);
+.btn-primary {
+  background: var(--color-primary);
   color: var(--color-surface);
 }
 .btn-primary:hover {
-  filter: brightness(1.06);
+  background: var(--color-primary-dark);
   box-shadow: var(--shadow-md);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--color-primary);
+  border: 2px solid var(--color-primary);
+}
+.btn-ghost:hover {
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  box-shadow: var(--shadow-sm);
 }
 .btn-secondary  {
     color: white;

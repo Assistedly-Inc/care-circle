@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { profilesApi } from '@/lib/api';
+import { getDemoProfiles } from '@/lib/demoData';
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -18,6 +20,93 @@ interface AuditEntry {
   details: string;
 }
 
+const isDemoId = (id: string) => id.startsWith('demo-') || id.startsWith('local-');
+
+/** Sample patient shown to visitors so the audit trail is interactive immediately. */
+function demoPatient() {
+  const d = getDemoProfiles()[0];
+  return { id: d.id, patient: { displayName: d.patient.displayName } };
+}
+
+/** Sample audit log covering the platform's compliance trail (times within the demo's updatedAt window). */
+function demoAuditLog(): AuditEntry[] {
+  const d = getDemoProfiles()[0];
+  return [
+    {
+      id: 'audit-001',
+      timestamp: '2026-09-18T09:05:00Z',
+      user: 'David Chen',
+      action: 'Care plan created',
+      entity: 'CarePlan',
+      entityId: d.id,
+      details: 'Care plan created for Margaret Chen following total knee replacement discharge.',
+    },
+    {
+      id: 'audit-002',
+      timestamp: '2026-09-18T10:20:00Z',
+      user: 'Home health nurse',
+      action: 'Medication verified',
+      entity: 'Medication',
+      entityId: 'm1',
+      details: 'Medication verified — Oxycodone 5mg (every 4-6 hours as needed).',
+    },
+    {
+      id: 'audit-003',
+      timestamp: '2026-09-18T14:45:00Z',
+      user: 'David Chen',
+      action: 'Medication added',
+      entity: 'Medication',
+      entityId: 'm2',
+      details: 'Medication added — Acetaminophen 500mg (every 6 hours).',
+    },
+    {
+      id: 'audit-004',
+      timestamp: '2026-09-18T18:30:00Z',
+      user: 'Margaret Chen',
+      action: 'Task completed',
+      entity: 'Task',
+      entityId: 't2',
+      details: 'Task completed — Ice and elevate leg (20 minutes on, 20 minutes off).',
+    },
+    {
+      id: 'audit-005',
+      timestamp: '2026-09-18T19:10:00Z',
+      user: 'Dr. Lisa Park',
+      action: 'Follow-up scheduled',
+      entity: 'Appointment',
+      entityId: 'apt-2026-09-24',
+      details: 'Follow-up scheduled — Orthopedic surgeon (Dr. Lisa Park) on Sep 24, 2026.',
+    },
+    {
+      id: 'audit-006',
+      timestamp: '2026-09-19T08:15:00Z',
+      user: 'Dr. Lisa Park',
+      action: 'Discharge instructions updated',
+      entity: 'CarePlan',
+      entityId: d.id,
+      details: 'Discharge instructions updated — post-op precautions and dressing change guidance.',
+    },
+    {
+      id: 'audit-007',
+      timestamp: '2026-09-19T09:30:00Z',
+      user: 'Margaret Chen',
+      action: 'Consent granted',
+      entity: 'Consent',
+      entityId: 'consent-family-ro',
+      details: 'Consent granted — Family (read-only) access for David Chen.',
+    },
+    {
+      id: 'audit-008',
+      timestamp: '2026-09-19T10:15:00Z',
+      user: 'David Chen',
+      action: 'Audit export performed',
+      entity: 'AuditLog',
+      entityId: 'export-2026-09-19',
+      details: 'Audit export performed — full audit trail exported to PDF.',
+    },
+  ];
+}
+
 export default function AuditPage() {
   const [patients, setPatients] = useState<any[]>([]);
   const [selected, setSelected] = useState('');
@@ -25,17 +114,51 @@ export default function AuditPage() {
   const [loadingPatients, setLoadingPatients] = useState(true);
   const [loadingLog, setLoadingLog] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [demoMode, setDemoMode] = useState(false);
 
   useEffect(() => {
-    profilesApi
-      .list()
-      .then((res) => setPatients(res.patients ?? []))
-      .catch((e) => setError(e.message))
-      .finally(() => setLoadingPatients(false));
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await profilesApi.list();
+        if (cancelled) return;
+        const list = res.patients ?? [];
+        if (list.length > 0) {
+          setPatients(list);
+          setDemoMode(false);
+          setError(null);
+        } else {
+          // No patients yet → sample data so visitors can try the audit trail now.
+          const demo = demoPatient();
+          setPatients([demo]);
+          setSelected(demo.id);
+          setDemoMode(true);
+          setError(null);
+        }
+      } catch (e) {
+        // Visitors without a session hit the auth-required backend → sample data.
+        if (cancelled) return;
+        const demo = demoPatient();
+        setPatients([demo]);
+        setSelected(demo.id);
+        setDemoMode(true);
+        setError(null);
+      } finally {
+        if (!cancelled) setLoadingPatients(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
     if (!selected) return;
+    if (isDemoId(selected)) {
+      // Demo: serve the sample audit log from local state.
+      setEntries(demoAuditLog());
+      setError(null);
+      setLoadingLog(false);
+      return;
+    }
     setLoadingLog(true);
     profilesApi
       .audit(selected)
@@ -70,10 +193,26 @@ export default function AuditPage() {
             Every change, accounted for
           </h1>
           <p className="text-[var(--color-text-light)] max-w-2xl leading-relaxed">
-            Full audit trail of profile, medication, and task changes — HIPAA-ready accountability for every action.
+            Full audit trail of profile, medication, and task changes — designed with HIPAA-aware safeguards for every action.
           </p>
         </div>
       </div>
+
+      {/* Demo-mode notice (sample data for visitors) */}
+      {demoMode && (
+        <div className="container mt-6">
+          <div className="card !p-4 flex flex-wrap items-center justify-between gap-3 border border-[var(--color-accent)]/30 bg-[#fdf9f3]">
+            <p className="text-sm text-[var(--color-text-light)] leading-relaxed">
+              <span className="font-bold text-[var(--color-accent)]">Demo mode — </span>
+              you&apos;re exploring the sample compliance &amp; audit trail.{' '}
+              <Link href="/features/auth" className="font-semibold text-[var(--color-primary)] hover:underline">
+                Sign in
+              </Link>{' '}
+              to manage real care plans.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="container mt-8">
         {error && (

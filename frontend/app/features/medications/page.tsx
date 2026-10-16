@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { cases as casesApi, medicationsApi } from '@/lib/api';
+import { getDemoProfiles } from '@/lib/demoData';
 import type { CareCase, Medication } from '@/types';
 
 interface MedView {
@@ -51,12 +52,40 @@ function toCaseView(c: CareCase): CaseView {
   };
 }
 
+/** Sample care plan shown to visitors so medication management is interactive immediately. */
+function demoCaseView(): CaseView {
+  const d = getDemoProfiles()[0];
+  return {
+    id: d.id,
+    patient: {
+      displayName: d.patient.displayName,
+      primaryDiagnosis: d.patient.primaryDiagnosis,
+      dateOfBirth: d.patient.dateOfBirth,
+    },
+    emergencyContacts: d.emergencyContacts.map((c) => ({ name: c.name })),
+    tasks: d.tasks,
+    medications: d.medications.map((m) => ({
+      id: m.id,
+      name: m.name,
+      dose: m.dose,
+      schedule: m.schedule,
+      source: m.source,
+      verified: m.verified,
+      notes: m.notes,
+    })),
+    updatedAt: d.updatedAt,
+  };
+}
+
+const isDemoId = (id: string) => id.startsWith('demo-') || id.startsWith('local-');
+
 export default function MedicationsDemoPage() {
   const [profiles, setProfiles] = useState<CaseView[]>([]);
   const [selectedProfile, setSelectedProfile] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [demoMode, setDemoMode] = useState(false);
 
   const profile = useMemo(() => profiles.find(p => p.id === selectedProfile), [profiles, selectedProfile]);
 
@@ -70,16 +99,32 @@ export default function MedicationsDemoPage() {
       try {
         const list = await casesApi.list();
         if (cancelled) return;
-        const views = list.map(toCaseView);
-        setProfiles(views);
-        setError(null);
-        if (views.length > 0) {
-          const latest = views.slice().sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt))[0];
-          setSelectedProfile(latest.id);
-          refreshMeds(latest.id).catch(e => setError(e instanceof Error ? e.message : 'Failed to load medications'));
+        if (list && list.length > 0) {
+          const views = list.map(toCaseView);
+          setProfiles(views);
+          setDemoMode(false);
+          setError(null);
+          if (views.length > 0) {
+            const latest = views.slice().sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt))[0];
+            setSelectedProfile(latest.id);
+            refreshMeds(latest.id).catch(e => setError(e instanceof Error ? e.message : 'Failed to load medications'));
+          }
+        } else {
+          // No plans yet → sample data so visitors can try medication management now.
+          const demo = demoCaseView();
+          setProfiles([demo]);
+          setSelectedProfile(demo.id);
+          setDemoMode(true);
+          setError(null);
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load cases');
+        // Visitors without a session hit the auth-required backend → sample data.
+        if (cancelled) return;
+        const demo = demoCaseView();
+        setProfiles([demo]);
+        setSelectedProfile(demo.id);
+        setDemoMode(true);
+        setError(null);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -88,6 +133,7 @@ export default function MedicationsDemoPage() {
   }, []);
 
   async function refreshMeds(caseId: string) {
+    if (isDemoId(caseId)) return; // demo meds live in the local CaseView
     const meds = await medicationsApi.list(caseId);
     setProfiles(prev => prev.map(p => p.id === caseId ? { ...p, medications: meds.map(toMedView) } : p));
   }
@@ -106,6 +152,12 @@ export default function MedicationsDemoPage() {
     const med = profile.medications.find(m => m.id === medId);
     if (!med) return;
     setSaving(true);
+    if (isDemoId(selectedProfile)) {
+      // Demo: toggle verification locally so visitors can try the flow.
+      setProfiles(prev => prev.map(p => p.id === selectedProfile ? { ...p, medications: p.medications.map(m => m.id === medId ? { ...m, verified: !m.verified } : m) } : p));
+      setSaving(false);
+      return;
+    }
     try {
       await medicationsApi.update(selectedProfile, medId, {
         verifiedAt: med.verified ? null : new Date().toISOString(),
@@ -123,6 +175,13 @@ export default function MedicationsDemoPage() {
     e.preventDefault();
     if (!profile || !form.name.trim()) return;
     setSaving(true);
+    if (isDemoId(selectedProfile)) {
+      // Demo: add the medication locally so visitors can try the flow.
+      setProfiles(prev => prev.map(p => p.id === selectedProfile ? { ...p, medications: [...p.medications, { id: `local-${Date.now()}`, name: form.name, dose: form.dose, schedule: form.schedule, source: form.source || 'Family added', notes: form.notes, verified: false }] } : p));
+      setForm({ name: '', dose: '', schedule: '', source: '', notes: '' });
+      setSaving(false);
+      return;
+    }
     try {
       await medicationsApi.create(selectedProfile, {
         name: form.name,
@@ -155,6 +214,22 @@ export default function MedicationsDemoPage() {
           </p>
         </div>
       </div>
+
+      {/* Demo-mode notice (sample data for visitors) */}
+      {demoMode && (
+        <div className="container mt-6">
+          <div className="card !p-4 flex flex-wrap items-center justify-between gap-3 border border-[var(--color-accent)]/30 bg-[#fdf9f3]">
+            <p className="text-sm text-[var(--color-text-light)] leading-relaxed">
+              <span className="font-bold text-[var(--color-accent)]">Demo mode — </span>
+              you&apos;re exploring sample medication management.{' '}
+              <Link href="/features/auth" className="font-semibold text-[var(--color-primary)] hover:underline">
+                Sign in
+              </Link>{' '}
+              to manage real care plans.
+            </p>
+          </div>
+        </div>
+      )}
 
       {error ? (
         <div className="container mt-8">

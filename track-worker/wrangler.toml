@@ -1,0 +1,15 @@
+name = "track-worker"
+main = "src/index.ts"
+compatibility_date = "2026-10-14"
+
+# Google Ads URL tracking subdomain — sits in front of the final URL in the
+# Google Ads tracking template (https://support.google.com/google-ads/answer/2549100).
+# Custom domain at track.assistedly.ai — `wrangler deploy` provisions the route
+# AND the DNS record automatically for the zone.
+routes = [
+  { pattern = "track.assistedly.ai", custom_domain = true, zone_id = "70904cb60620dcfb62f49cccbfe72959" },
+]
+
+# Click events logged via console.log → Workers Logs (wrangler tail / dashboard).
+[observability]
+enabled = true

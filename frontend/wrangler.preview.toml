@@ -1,0 +1,7 @@
+# Preview Worker for CTA prominence testing — deploys to workers.dev ONLY (no custom domain, production untouched)
+name = "care-circle-cta-preview"
+compatibility_date = "2024-01-01"
+
+[assets]
+directory = "out"
+not_found_handling = "404-page"

@@ -452,6 +452,25 @@ function SignInCard() {
             </Link>
             <span className="text-xs text-[#065f46]">Your session lasts 12 hours.</span>
           </div>
+
+          {/* Secondary CTA: SMS opt-in (10DLC) — right after sign-in, clearly secondary to the primary CTA */}
+          <div className="mt-5 pt-4 border-t border-[#065f46]/15">
+            <p className="text-sm font-extrabold text-[#065f46]">Prefer reminders by text?</p>
+            <p className="text-xs text-[#065f46]/80 leading-relaxed mt-1">
+              Text <span className="font-bold">START</span> to{' '}
+              <a href={SMS_OPT_IN_LINK} className="font-bold underline decoration-[#065f46]/40 underline-offset-2">
+                {SMS_OPT_IN_NUMBER}
+              </a>{' '}
+              — it opens your messaging app ready to send.
+            </p>
+            <a href={SMS_OPT_IN_LINK} className="btn btn-ghost text-sm !py-2 !px-4 mt-3">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8.625 9.75a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.76 9.76 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z"/></svg>
+              Opt in via text
+            </a>
+            <p className="text-[10px] text-[#065f46]/70 mt-2">
+              Msg &amp; data rates may apply. Reply STOP to opt out.
+            </p>
+          </div>
         </div>
       )}
     </section>

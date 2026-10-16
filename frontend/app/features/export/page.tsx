@@ -3,6 +3,45 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { cases } from '@/lib/api';
+import { getDemoProfiles } from '@/lib/demoData';
+
+const isDemoId = (id: string) => id.startsWith('demo-') || id.startsWith('local-');
+
+/** Sample case shown to visitors so export is usable without an account. */
+function demoCaseView() {
+  const d = getDemoProfiles()[0];
+  return {
+    id: d.id,
+    patientName: d.patient.displayName,
+    patientDob: d.patient.dateOfBirth,
+    emergencyContacts: d.emergencyContacts,
+    medications: d.medications,
+    tasks: d.tasks,
+    notifications: d.notifications,
+    dischargeNotes: d.patient.primaryDiagnosis,
+    status: d.status,
+    updatedAt: d.updatedAt,
+  };
+}
+
+/** Care-plan JSON payload for the client-side demo export. */
+function buildDemoExportJson(p: any) {
+  return {
+    exportedAt: new Date().toISOString(),
+    source: 'demo-sample-data',
+    patient: {
+      id: p.id,
+      name: p.patientName,
+      dateOfBirth: p.patientDob,
+      primaryDiagnosis: p.dischargeNotes,
+      emergencyContacts: p.emergencyContacts || [],
+    },
+    medications: p.medications || [],
+    tasks: p.tasks || [],
+    notifications: p.notifications || [],
+    dischargeNotes: p.dischargeNotes,
+  };
+}
 
 export default function ExportPage() {
   const [casesList, setCasesList] = useState<any[]>([]);
@@ -11,13 +50,39 @@ export default function ExportPage() {
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [demoMode, setDemoMode] = useState(false);
 
   useEffect(() => {
-    cases
-      .list()
-      .then(setCasesList)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await cases.list();
+        if (cancelled) return;
+        if (list && list.length > 0) {
+          setCasesList(list);
+          setDemoMode(false);
+          setError(null);
+        } else {
+          // No cases yet → sample data so visitors can try export now.
+          const demo = demoCaseView();
+          setCasesList([demo]);
+          setSelected(demo.id);
+          setDemoMode(true);
+          setError(null);
+        }
+      } catch (e) {
+        // Visitors without a session hit the auth-required backend → sample data.
+        if (cancelled) return;
+        const demo = demoCaseView();
+        setCasesList([demo]);
+        setSelected(demo.id);
+        setDemoMode(true);
+        setError(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   const profile = useMemo(() => casesList.find((c) => c.id === selected), [casesList, selected]);
@@ -26,6 +91,22 @@ export default function ExportPage() {
     if (!profile) return;
     setExporting(true);
     setMessage(null);
+    if (isDemoId(profile.id)) {
+      // Demo ids have no backend case → build the export client-side.
+      const json = JSON.stringify(buildDemoExportJson(profile), null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'margaret-chen-care-plan.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setMessage('Demo care plan JSON downloaded — check your downloads folder.');
+      setExporting(false);
+      return;
+    }
     const a = document.createElement('a');
     a.href = `/api/export?caseId=${profile.id}`;
     a.download = `care-plan-${profile.id}.pdf`;
@@ -50,6 +131,22 @@ export default function ExportPage() {
           </p>
         </div>
       </div>
+
+      {/* Demo-mode notice (sample data for visitors) */}
+      {demoMode && (
+        <div className="container mt-6">
+          <div className="card !p-4 flex flex-wrap items-center justify-between gap-3 border border-[var(--color-accent)]/30 bg-[#fdf9f3]">
+            <p className="text-sm text-[var(--color-text-light)] leading-relaxed">
+              <span className="font-bold text-[var(--color-accent)]">Demo mode — </span>
+              you&apos;re exploring sample data export.{' '}
+              <Link href="/features/auth/" className="font-semibold text-[var(--color-primary)] hover:underline">
+                Sign in
+              </Link>{' '}
+              to export real care plans.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="container mt-8">
         {error && (

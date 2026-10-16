@@ -243,3 +243,12 @@ label {
   border-color: var(--color-accent);
   box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
 }
+
+/* ── Trial CTA gold ring — 1.5pt accent border to make the buy button pop ── */
+.btn-gold-ring {
+  border: 1.5pt solid var(--color-accent) !important;
+  box-shadow: 0 0 0 1pt rgba(196, 149, 106, 0.22), var(--shadow-sm);
+}
+.btn-gold-ring:hover {
+  box-shadow: 0 0 0 1.5pt rgba(196, 149, 106, 0.35), var(--shadow-md);
+}

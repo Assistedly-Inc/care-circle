@@ -86,7 +86,7 @@ export default function Footer() {
                 </li>
               ))}
             </ul>
-            <Link href="/checkout/" data-cta="start_trial" className="btn btn-primary text-sm !py-2 !px-4 inline-flex">
+            <Link href="/checkout/" data-cta="start_trial" className="btn btn-primary btn-gold-ring text-sm !py-2 !px-4 inline-flex">
               Start 30-Day Free Trial
             </Link>
           </div>

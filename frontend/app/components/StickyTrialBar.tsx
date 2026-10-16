@@ -35,7 +35,7 @@ export default function StickyTrialBar() {
         <Link
           href="/checkout/"
           data-cta="start_trial"
-          className="btn btn-primary !py-2.5 !px-5 text-sm whitespace-nowrap"
+          className="btn btn-primary btn-gold-ring !py-2.5 !px-5 text-sm whitespace-nowrap"
         >
           Start 30-Day Free Trial
         </Link>

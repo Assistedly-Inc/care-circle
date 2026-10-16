@@ -30,7 +30,7 @@ export default function TrialCta({
       <Link
         href={target}
         data-cta="start_trial"
-        className={`btn btn-primary ${size}`}
+        className={`btn btn-primary btn-gold-ring ${size}`}
       >
         {label}
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>

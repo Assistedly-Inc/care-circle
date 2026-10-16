@@ -65,7 +65,7 @@ export default function CheckoutSuccessPage() {
 
         <div className="mt-10 text-center">
           <p className="text-sm text-[var(--color-text-light)] mb-3">
-            Questions? <Link href="/chat/" className="font-semibold text-[var(--color-primary)] hover:underline">Chat with Inkbot</Link> or email{' '}
+            Questions? <Link href="/chat/" className="font-semibold text-[var(--color-primary)] hover:underline">Chat with Us</Link> or email{' '}
             <a href="mailto:support@assistedly.ai" className="font-semibold text-[var(--color-primary)] hover:underline">support@assistedly.ai</a>.
           </p>
           <TrialCta label="Invite your care circle" href="/features/cases/" microcopy={false} />

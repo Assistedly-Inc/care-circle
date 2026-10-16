@@ -17,7 +17,7 @@ const tiers = [
     features: [
       'Sample care plan (demo mode)',
       'Explore medications, tasks & health tabs',
-      'Chat with Inkbot (demo)',
+      'Chat with Us (demo)',
       'No credit card required',
     ],
     cta: { label: 'Try the demo', href: '/features/cases/' },

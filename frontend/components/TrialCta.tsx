@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { preloadStripeJs } from '@/lib/stripePreload';
+import { preloadCheckout } from '@/lib/stripePreload';
 
 const CHECKOUT_PATH = '/checkout/';
 
@@ -33,7 +33,7 @@ export default function TrialCta({
       <Link
         href={target}
         data-cta="start_trial"
-        onClick={() => preloadStripeJs()}
+        onClick={() => preloadCheckout()}
         className={`btn btn-primary btn-gold-ring ${size}`}
       >
         {label}

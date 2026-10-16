@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { preloadStripeJs } from '@/lib/stripePreload';
+import { preloadCheckout } from '@/lib/stripePreload';
 
 const HIDDEN_PATHS = ['/checkout', '/pricing', '/features/auth'];
 
@@ -36,7 +36,7 @@ export default function StickyTrialBar() {
         <Link
           href="/checkout/"
           data-cta="start_trial"
-          onClick={() => preloadStripeJs()}
+          onClick={() => preloadCheckout()}
           className="btn btn-primary btn-gold-ring !py-2.5 !px-5 text-sm whitespace-nowrap"
         >
           Start 30-Day Free Trial

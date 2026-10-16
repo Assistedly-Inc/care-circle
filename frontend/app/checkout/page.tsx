@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { checkoutApi } from '@/lib/api';
-import { preloadStripeJs } from '@/lib/stripePreload';
+import { preloadStripeJs, readPrecreatedSession } from '@/lib/stripePreload';
 
 /**
  * Stripe Checkout — embedded form (ui_mode: "form", Dahlia API).
@@ -46,6 +46,8 @@ function loadStripeJs(): Promise<unknown> {
     const script = document.createElement('script');
     script.src = 'https://js.stripe.com/dahlia/stripe.js';
     script.async = true;
+    // This page's whole job is the form — fetch Stripe.js at high priority.
+    (script as HTMLScriptElement & { fetchPriority?: string }).fetchPriority = 'high';
     script.onload = () => resolve((window as { Stripe?: unknown }).Stripe);
     script.onerror = () => {
       stripeJsPromise = null;
@@ -88,12 +90,17 @@ export default function CheckoutPage() {
           // attribution capture must never break checkout
         }
 
-        // Parallel: Stripe.js download and Checkout Session creation — the
-        // session endpoint does not depend on Stripe.js, so load both at once
-        // instead of waterfalling (saves a full round trip).
+        // Use a session pre-created on the CTA click when available (no round
+        // trip); otherwise create one now. Stripe.js and the session load in
+        // parallel either way.
+        const precreated = readPrecreatedSession();
+        const sessionPromise = precreated
+          ? Promise.resolve({ client_secret: precreated })
+          : checkoutApi.create({ ga4_client_id: ga4ClientId, gclid });
+
         const [StripeCtor, session] = await Promise.all([
           loadStripeJs(),
-          checkoutApi.create({ ga4_client_id: ga4ClientId, gclid }),
+          sessionPromise,
         ]);
         const stripe = (StripeCtor as (key: string) => {
           initCheckoutFormSdk: (args: {

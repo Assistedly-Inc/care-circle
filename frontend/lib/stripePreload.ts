@@ -1,25 +1,60 @@
 /**
- * Warm Stripe's assets AND pre-create the Checkout Session as early as
- * possible so the embedded checkout mounts instantly:
- *   1. preconnect to Stripe hosts (DNS/TLS warm-up)
- *   2. preload Stripe.js (script cached by the time /checkout mounts)
- *   3. pre-create the Checkout Session on CTA click and stash the
- *      client_secret in sessionStorage — the page then renders the form as
- *      soon as Stripe.js is ready, no extra round trip (~0.5s saved).
+ * Stripe warm-up pipeline — one shared loader, no duplicate downloads.
+ *   1. Parse-time inline script in the layout starts the Stripe.js download
+ *      the instant /checkout HTML arrives (before React hydrates).
+ *   2. preloadStripeJs() (CTA click or page effect) preconnects + ensures the
+ *      script exists at low priority on marketing pages.
+ *   3. loadStripeJs('high') on the checkout page bumps priority and resolves
+ *      once Stripe is ready — reusing the script already in flight.
+ *   4. precreateCheckoutSession() stashes the client_secret in sessionStorage
+ *      so /checkout renders the form with zero session round trip.
  * Idempotent and guarded — never throws, never blocks rendering.
  */
 import { checkoutApi } from './api';
 
-const STRIPE_JS_URL = 'https://js.stripe.com/dahlia/stripe.js';
+export const STRIPE_JS_URL = 'https://js.stripe.com/dahlia/stripe.js';
 const STRIPE_HOSTS = ['https://js.stripe.com', 'https://api.stripe.com', 'https://m.stripe.network'];
 const CS_KEY = 'assistedly_checkout_cs';
 
-let preloaded = false;
+let stripePromise: Promise<unknown> | null = null;
 
+function ensureStripeScript(priority: 'low' | 'high'): Promise<unknown> {
+  if (stripePromise) return stripePromise;
+  stripePromise = new Promise((resolve, reject) => {
+    try {
+      if (typeof window === 'undefined' || typeof document === 'undefined') {
+        reject(new Error('Stripe.js can only be loaded in the browser.'));
+        return;
+      }
+      const existing = document.querySelector(`script[src="${STRIPE_JS_URL}"]`);
+      if (existing && (window as { Stripe?: unknown }).Stripe) {
+        resolve((window as { Stripe?: unknown }).Stripe);
+        return;
+      }
+      const script = (existing as HTMLScriptElement) || document.createElement('script');
+      if (!existing) {
+        script.src = STRIPE_JS_URL;
+        script.async = true;
+        document.head.appendChild(script);
+      }
+      (script as HTMLScriptElement & { fetchPriority?: string }).fetchPriority = priority;
+      script.onload = () => resolve((window as { Stripe?: unknown }).Stripe);
+      script.onerror = () => {
+        stripePromise = null;
+        reject(new Error('Failed to load Stripe.js.'));
+      };
+    } catch (err) {
+      stripePromise = null;
+      reject(err);
+    }
+  });
+  return stripePromise;
+}
+
+/** Marketing-page warm-up: preconnect + ensure the script (low priority). */
 export function preloadStripeJs(): void {
-  if (preloaded || typeof document === 'undefined') return;
-  preloaded = true;
   try {
+    if (typeof document === 'undefined') return;
     for (const href of STRIPE_HOSTS) {
       if (!document.querySelector(`link[rel="preconnect"][href="${href}"]`)) {
         const link = document.createElement('link');
@@ -28,17 +63,18 @@ export function preloadStripeJs(): void {
         document.head.appendChild(link);
       }
     }
-    if (!document.querySelector(`script[src="${STRIPE_JS_URL}"]`)) {
-      const script = document.createElement('script');
-      script.src = STRIPE_JS_URL;
-      script.async = true;
-      // Low priority on marketing pages (warm-up only); the checkout page
-      // itself re-loads at high priority.
-      (script as HTMLScriptElement & { fetchPriority?: string }).fetchPriority = 'low';
-      document.head.appendChild(script);
-    }
+    void ensureStripeScript('low');
   } catch {
     // Preloading must never break the page.
+  }
+}
+
+/** Checkout page loader: ensure script at high priority, resolve when ready. */
+export function loadStripeJs(): Promise<unknown> {
+  try {
+    return ensureStripeScript('high');
+  } catch {
+    return Promise.reject(new Error('Failed to load Stripe.js.'));
   }
 }
 

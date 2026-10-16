@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { checkoutApi } from '@/lib/api';
-import { preloadStripeJs, readPrecreatedSession } from '@/lib/stripePreload';
+import { loadStripeJs, preloadStripeJs, readPrecreatedSession } from '@/lib/stripePreload';
 
 /**
  * Stripe Checkout — embedded form (ui_mode: "form", Dahlia API).
@@ -27,36 +27,6 @@ const appearance = {
     spacingUnit: '4px',
   },
 };
-
-let stripeJsPromise: Promise<unknown> | null = null;
-
-function loadStripeJs(): Promise<unknown> {
-  if (typeof window === 'undefined') {
-    return Promise.reject(new Error('Stripe.js can only be loaded in the browser.'));
-  }
-  if (stripeJsPromise) return stripeJsPromise;
-  stripeJsPromise = new Promise((resolve, reject) => {
-    const existing = document.querySelector(
-      'script[src="https://js.stripe.com/dahlia/stripe.js"]'
-    ) as HTMLScriptElement | null;
-    if (existing && (window as { Stripe?: unknown }).Stripe) {
-      resolve((window as { Stripe?: unknown }).Stripe);
-      return;
-    }
-    const script = document.createElement('script');
-    script.src = 'https://js.stripe.com/dahlia/stripe.js';
-    script.async = true;
-    // This page's whole job is the form — fetch Stripe.js at high priority.
-    (script as HTMLScriptElement & { fetchPriority?: string }).fetchPriority = 'high';
-    script.onload = () => resolve((window as { Stripe?: unknown }).Stripe);
-    script.onerror = () => {
-      stripeJsPromise = null;
-      reject(new Error('Failed to load Stripe.js.'));
-    };
-    document.head.appendChild(script);
-  });
-  return stripeJsPromise;
-}
 
 export default function CheckoutPage() {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');

@@ -13,6 +13,9 @@ import type {
 } from '@/types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://care-backend-mvp.forwardjump-com198.workers.dev';
+// Checkout can point at a separate (test-mode) worker via env, e.g. the
+// checkout-test-worker used by preview builds. Defaults to the main backend.
+const CHECKOUT_API_BASE = process.env.NEXT_PUBLIC_CHECKOUT_API_URL || API_BASE;
 
 const TOKEN_KEY = 'carecircle_token';
 
@@ -29,8 +32,8 @@ function getToken(): string | null {
   return window.localStorage.getItem(TOKEN_KEY);
 }
 
-async function api<T>(path: string, options?: RequestInit): Promise<T> {
-  const url = `${API_BASE}${path}`;
+async function api<T>(path: string, options?: RequestInit, base: string = API_BASE): Promise<T> {
+  const url = `${base}${path}`;
   const token = getToken();
   const res = await fetch(url, {
     headers: {
@@ -304,7 +307,7 @@ export const checkoutApi = {
     api<{ client_secret: string }>('/api/create-checkout-session', {
       method: 'POST',
       body: JSON.stringify(meta ?? {}),
-    }),
+    }, CHECKOUT_API_BASE),
 };
 
 export const remindersApi = {

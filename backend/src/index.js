@@ -45,8 +45,12 @@ async function stripeCreateCheckoutSession(env, request) {
   form.set('integration_identifier', 'custom_embedded_web_0001');
   form.set('payment_method_collection', 'always'); // mode === 'subscription'
   form.set('subscription_data[trial_period_days]', '30'); // 30-day free trial
-  form.set('line_items[0][price]', 'price_1URC9xApH5e5iOZ4vtS464J6'); // $29/mo
+  form.set('line_items[0][price]', env.STRIPE_PRICE_ID || 'price_1URC9xApH5e5iOZ4vtS464J6'); // $29/mo (env override for test/go-live)
   form.set('line_items[0][quantity]', '1');
+  // Redirect back to the thank-you page after checkout. Origin-derived so the
+  // preview workers.dev URL and production both redirect correctly.
+  const origin = request.headers.get('origin') || (request.headers.get('referer') || '').replace(/\/$/, '') || 'https://assistedly.ai';
+  form.set('return_url', `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`);
   // Best-effort attribution metadata (from the checkout page, if present)
   const body = await request.json().catch(() => ({}));
   if (body.ga4_client_id) form.set('metadata[ga4_client_id]', String(body.ga4_client_id));

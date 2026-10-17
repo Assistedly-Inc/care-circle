@@ -115,22 +115,37 @@ async function streamCheckout(request, env, url) {
   }
 
   const preloadTag = `<link rel="preload" as="script" href="${STRIPE_JS}" fetchpriority="high">`;
+  // Edge marker: tells the layout's parse-time script NOT to duplicate session
+  // creation (the edge owns it now).
+  const edgeMarker = '<script>window.__EDGE_CHECKOUT=1;</script>';
+  // Promise handoff: created in the FIRST body chunk (before the app scripts),
+  // resolved later with the client_secret (or null on edge failure).
+  const promiseScript =
+    '<script>window.__CHECKOUT_CS_READY=new Promise(function(r){window.__resolveCheckoutCS=r;});</script>';
+
+  const head = html.slice(0, headEnd);
+  const afterHead = html.slice(headEnd + '</head>'.length); // body content
+  const closeIdx = afterHead.lastIndexOf('</body>');
+  const bodyMain = closeIdx >= 0 ? afterHead.slice(0, closeIdx) : afterHead;
+  const bodyTail = closeIdx >= 0 ? afterHead.slice(closeIdx) : '';
 
   const body = new ReadableStream({
     async start(controller) {
-      // 1) Stream <head> + preload immediately (Stripe.js starts NOW, in
-      //    parallel with the Stripe API call).
-      controller.enqueue(html.slice(0, headEnd) + preloadTag);
-      // 2) Create the session at the edge, then inject its secret.
+      // 1) <head> + preload + edge marker — parse starts, Stripe.js downloads.
+      controller.enqueue(head + preloadTag + edgeMarker);
+      // 2) The FULL body (form container, layout scripts) streams NOW — the
+      //    form outline renders at TTFB (~0.14s), not after the session.
+      controller.enqueue('</head>' + promiseScript + bodyMain);
+      // 3) Session created at the edge in parallel → resolve the handoff.
       try {
         const clientSecret = await createCheckoutSession(env, url.origin);
-        controller.enqueue(`<script>window.__CHECKOUT_CS=${JSON.stringify(clientSecret)};</script>`);
+        controller.enqueue(`<script>window.__resolveCheckoutCS(${JSON.stringify(clientSecret)});</script>`);
       } catch {
-        // Edge session failed — the page's parse-time script falls back to
+        // Edge session failed — resolve null so the client falls back to
         // creating the session client-side.
+        controller.enqueue('<script>window.__resolveCheckoutCS(null);</script>');
       }
-      // 3) Stream the rest of the document.
-      controller.enqueue(html.slice(headEnd));
+      controller.enqueue(bodyTail);
       controller.close();
     },
   });

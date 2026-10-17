@@ -4,7 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import { checkoutApi } from '@/lib/api';
 import { loadStripeJs, preloadStripeJs, readPrecreatedSession } from '@/lib/stripePreload';
 
-type StripeWindow = typeof window & { __CHECKOUT_CS?: string };
+type StripeWindow = typeof window & {
+  __CHECKOUT_CS_READY?: Promise<string | null>;
+  __EDGE_CHECKOUT?: number;
+};
 
 /**
  * Stripe Checkout — embedded form (ui_mode: "form", Dahlia API).
@@ -62,16 +65,24 @@ export default function CheckoutPage() {
           // attribution capture must never break checkout
         }
 
-        // Use the edge-injected session (window.__CHECKOUT_CS) when present — the
-        // edge worker created it before returning the HTML. Fall back to a
-        // session pre-created on the CTA click, then to creating one now.
-        // Stripe.js and the session resolve in parallel either way.
-        const edgeCs = (window as StripeWindow).__CHECKOUT_CS;
-        if (edgeCs) delete (window as StripeWindow).__CHECKOUT_CS;
-        const precreated = edgeCs || readPrecreatedSession();
+        // The edge worker streams the body immediately and resolves the
+        // __CHECKOUT_CS_READY Promise once the session is created in parallel.
+        // Prefer a CTA-click pre-created session; otherwise race the edge
+        // promise against a 3s timeout, then fall back to client-side creation.
+        const precreated = readPrecreatedSession();
+        const edgeReady =
+          (window as StripeWindow).__CHECKOUT_CS_READY ?? Promise.resolve<string | null>(null);
         const sessionPromise = precreated
           ? Promise.resolve({ client_secret: precreated })
-          : checkoutApi.create({ ga4_client_id: ga4ClientId, gclid });
+          : Promise.race([
+              edgeReady.then((cs) => (cs ? { client_secret: cs } : null)),
+              new Promise<{ client_secret: string } | null>((resolve) =>
+                setTimeout(() => resolve(null), 3000)
+              ),
+            ]).then(
+              (session) =>
+                session ?? checkoutApi.create({ ga4_client_id: ga4ClientId, gclid })
+            );
 
         const [StripeCtor, session] = await Promise.all([
           loadStripeJs(),

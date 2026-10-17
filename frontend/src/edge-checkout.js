@@ -1,15 +1,22 @@
 /**
  * care-circle-cta-preview edge handler (preview only — production untouched).
  *
- * Static assets + one interception: for GET /checkout, create the Stripe
- * Checkout Session AT THE EDGE (before HTML is returned) and inject the
- * client_secret into the page, so the form renders with zero client-side
- * session round trip ("Loading checkout…" disappears).
+ * Static assets + one interception: for GET /checkout, STREAM the HTML.
+ *   1. The <head> + a Stripe.js preload link are sent IMMEDIATELY, so the
+ *      browser starts the 1.1 MB Stripe.js download while the Worker awaits
+ *      the Stripe API.
+ *   2. The Checkout Session is created at the edge in parallel and its
+ *      client_secret is injected before </head>.
+ *   3. The body streams next — the form mounts with zero client-side session
+ *      round trip and the script already in flight ("Loading checkout…" gone,
+ *      TTFB ≈ static-asset latency instead of session latency).
  *
  * Secrets come from worker secrets/vars (never env files):
  *   STRIPE_SECRET_KEY  — test secret key (preview)
  *   STRIPE_PRICE_ID    — test-mode price
  */
+const STRIPE_JS = 'https://js.stripe.com/dahlia/stripe.js';
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -18,17 +25,30 @@ export default {
     if (request.method === 'GET' && isCheckout) {
       const assetResp = await env.ASSETS.fetch(request);
       if (!assetResp.ok) return assetResp;
-      let html = await assetResp.text();
-      try {
-        const clientSecret = await createCheckoutSession(env, url.origin);
-        html = html.replace(
-          '</head>',
-          `<script>window.__CHECKOUT_CS=${JSON.stringify(clientSecret)};</script></head>`
-        );
-      } catch {
-        // Edge session failed — the page falls back to client-side creation.
-      }
-      return new Response(html, {
+      const html = await assetResp.text();
+      const headEnd = html.indexOf('</head>');
+      const preloadTag = `<link rel="preload" as="script" href="${STRIPE_JS}" fetchpriority="high">`;
+
+      const body = new ReadableStream({
+        async start(controller) {
+          // 1) Stream the <head> + preload immediately (browser starts the
+          //    Stripe.js download NOW, in parallel with the Stripe API call).
+          controller.enqueue(html.slice(0, headEnd) + preloadTag);
+          // 2) Create the session at the edge, then inject its secret.
+          try {
+            const clientSecret = await createCheckoutSession(env, url.origin);
+            controller.enqueue(`<script>window.__CHECKOUT_CS=${JSON.stringify(clientSecret)};</script>`);
+          } catch {
+            // Edge session failed — the page's parse-time script falls back to
+            // creating the session client-side.
+          }
+          // 3) Stream the rest of the document.
+          controller.enqueue(html.slice(headEnd));
+          controller.close();
+        },
+      });
+
+      return new Response(body, {
         headers: {
           'content-type': 'text/html; charset=utf-8',
           'cache-control': 'no-store', // per-visit session — never cache

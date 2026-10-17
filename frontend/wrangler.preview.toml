@@ -1,7 +1,20 @@
 # Preview Worker for CTA prominence testing — deploys to workers.dev ONLY (no custom domain, production untouched)
 name = "care-circle-cta-preview"
 compatibility_date = "2024-01-01"
+main = "src/edge-checkout.js"
+workers_dev = true
+
+[vars]
+# Test-mode Stripe price (created in test mode; not a secret)
+STRIPE_PRICE_ID = "price_1URI7fApH5e5iOZ4swwzyaFR"
+
+[observability]
+enabled = true
 
 [assets]
 directory = "out"
+binding = "ASSETS"
 not_found_handling = "404-page"
+# Run the Worker script first so /checkout can be intercepted (edge session
+# injection) instead of being served as a plain static asset.
+run_worker_first = true

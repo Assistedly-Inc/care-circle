@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { checkoutApi } from '@/lib/api';
 import { loadStripeJs, preloadStripeJs, readPrecreatedSession } from '@/lib/stripePreload';
 
+type StripeWindow = typeof window & { __CHECKOUT_CS?: string };
+
 /**
  * Stripe Checkout — embedded form (ui_mode: "form", Dahlia API).
  * Stripe.js is loaded directly from https://js.stripe.com/dahlia/stripe.js
@@ -60,10 +62,13 @@ export default function CheckoutPage() {
           // attribution capture must never break checkout
         }
 
-        // Use a session pre-created on the CTA click when available (no round
-        // trip); otherwise create one now. Stripe.js and the session load in
-        // parallel either way.
-        const precreated = readPrecreatedSession();
+        // Use the edge-injected session (window.__CHECKOUT_CS) when present — the
+        // edge worker created it before returning the HTML. Fall back to a
+        // session pre-created on the CTA click, then to creating one now.
+        // Stripe.js and the session resolve in parallel either way.
+        const edgeCs = (window as StripeWindow).__CHECKOUT_CS;
+        if (edgeCs) delete (window as StripeWindow).__CHECKOUT_CS;
+        const precreated = edgeCs || readPrecreatedSession();
         const sessionPromise = precreated
           ? Promise.resolve({ client_secret: precreated })
           : checkoutApi.create({ ga4_client_id: ga4ClientId, gclid });

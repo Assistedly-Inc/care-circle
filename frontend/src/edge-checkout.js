@@ -26,6 +26,21 @@
  */
 const STRIPE_JS = 'https://js.stripe.com/dahlia/stripe.js';
 
+// Early-Hints Link headers. Cloudflare caches these and emits 103 Early Hints
+// BEFORE running the Worker on subsequent requests (custom-domain zones with
+// Early Hints enabled), giving the Stripe.js download a ~TTFB head start.
+const CHECKOUT_LINK_HEADER = [
+  `<${STRIPE_JS}>; rel=preload; as=script; fetchpriority=high`,
+  '<https://js.stripe.com>; rel=preconnect',
+  '<https://api.stripe.com>; rel=preconnect',
+  '<https://m.stripe.network>; rel=preconnect',
+].join(', ');
+
+// Preconnect only — used on HTML routes to warm Stripe connections before the
+// user ever clicks the checkout CTA.
+const PRECONNECT_LINK_HEADER =
+  '<https://js.stripe.com>; rel=preconnect, <https://api.stripe.com>; rel=preconnect, <https://m.stripe.network>; rel=preconnect';
+
 /** Classify a non-checkout path into a cache profile. */
 function classifyPath(pathname) {
   if (pathname === '/sw.js') {
@@ -43,9 +58,10 @@ function classifyPath(pathname) {
 }
 
 /** Wrap a response with the right Cache-Control (preserves streamed bodies). */
-function withCache(response, cacheControl) {
+function withCache(response, cacheControl, extraHeaders = {}) {
   const headers = new Headers(response.headers);
   headers.set('cache-control', cacheControl);
+  for (const [name, value] of Object.entries(extraHeaders)) headers.set(name, value);
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -71,7 +87,13 @@ export default {
 
     const assetResp = await env.ASSETS.fetch(request);
     const profile = classifyPath(url.pathname);
-    return withCache(assetResp, profile.value);
+    // HTML/success routes also warm Stripe connections via Early-Hints
+    // Link headers (103 on zones with Early Hints enabled).
+    const extraHeaders =
+      profile.type === 'html' || profile.type === 'success'
+        ? { Link: PRECONNECT_LINK_HEADER }
+        : {};
+    return withCache(assetResp, profile.value, extraHeaders);
   },
 };
 
@@ -84,7 +106,11 @@ async function streamCheckout(request, env, url) {
   // Defensive: if the built HTML has no </head>, fall back to plain no-store.
   if (headEnd === -1) {
     return new Response(html, {
-      headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
+      headers: {
+        'content-type': 'text/html; charset=utf-8',
+        'cache-control': 'no-store',
+        Link: CHECKOUT_LINK_HEADER,
+      },
     });
   }
 
@@ -113,6 +139,7 @@ async function streamCheckout(request, env, url) {
     headers: {
       'content-type': 'text/html; charset=utf-8',
       'cache-control': 'no-store', // per-visit session — never cache
+      Link: CHECKOUT_LINK_HEADER, // Early Hints: preload + preconnects
     },
   });
 }

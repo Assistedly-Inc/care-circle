@@ -12,7 +12,15 @@
 const CACHE = 'assistedly-stripe-v1';
 const STRIPE_JS = 'https://js.stripe.com/dahlia/stripe.js';
 
-self.addEventListener('install', () => {
+self.addEventListener('install', (event) => {
+  // Best-effort precache of Stripe.js so the FIRST checkout visit (before any
+  // fetch has populated the cache) also gets the instant path.
+  event.waitUntil(
+    caches
+      .open(CACHE)
+      .then((cache) => cache.add(STRIPE_JS))
+      .catch(() => {})
+  );
   self.skipWaiting();
 });
 

@@ -32,12 +32,14 @@ function classifyPath(pathname) {
     return { type: 'sw', value: 'public, max-age=0, s-maxage=86400, must-revalidate' };
   }
   if (pathname.startsWith('/checkout/success')) {
-    return { type: 'success', value: 'public, max-age=60, s-maxage=300' };
+    return { type: 'success', value: 'public, max-age=60, s-maxage=300, stale-while-revalidate=3600' };
   }
   if (/\.(js|css|woff2?|png|jpe?g|gif|webp|svg|ico|txt|json|xml|map)(\?|$)/i.test(pathname)) {
     return { type: 'asset', value: 'public, max-age=31536000, immutable' };
   }
-  return { type: 'html', value: 'public, max-age=300, s-maxage=600' };
+  // HTML routes: 5min browser / 10min edge, with stale-while-revalidate so the
+  // edge keeps serving instantly (in the background) even after s-maxage lapses.
+  return { type: 'html', value: 'public, max-age=300, s-maxage=600, stale-while-revalidate=3600' };
 }
 
 /** Wrap a response with the right Cache-Control (preserves streamed bodies). */
